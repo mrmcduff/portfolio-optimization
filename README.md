@@ -25,6 +25,7 @@ portfolio-optimization/
 │   ├── figures/               # Generated visualizations
 │   └── models/                # Saved model parameters
 ├── src/                       # Source code
+│   ├── analysis/              # Analysis of portfolios
 │   ├── preprocessing/         # Data preprocessing scripts
 │   └── optimization/          # Portfolio optimization algorithms
 ├── .gitignore                 # Git ignore file
@@ -98,6 +99,7 @@ python -m src.optimization.visualize_portfolio --weights results/models/fa_weigh
 ## Performance Metrics
 
 The portfolio evaluation includes the following metrics:
+
 - Total Return
 - Annualized Volatility
 - Sharpe Ratio
