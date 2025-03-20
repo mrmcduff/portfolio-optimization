@@ -39,9 +39,11 @@ def load_returns(file_path: str) -> Optional[pd.DataFrame]:
         return None
 
 
-def filter_by_period(returns: pd.DataFrame,
-                   start_date: Optional[str] = None,
-                   end_date: Optional[str] = None) -> pd.DataFrame:
+def filter_by_period(
+    returns: pd.DataFrame,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> pd.DataFrame:
     """
     Filter returns data by date range.
 
@@ -71,8 +73,9 @@ def filter_by_period(returns: pd.DataFrame,
     return filtered
 
 
-def prepare_optimization_inputs(returns: pd.DataFrame,
-                              periods_per_year: int = 252) -> Tuple[pd.Series, pd.DataFrame]:
+def prepare_optimization_inputs(
+    returns: pd.DataFrame, periods_per_year: int = 252
+) -> Tuple[pd.Series, pd.DataFrame]:
     """
     Prepare inputs for portfolio optimization.
 
@@ -98,13 +101,15 @@ def prepare_optimization_inputs(returns: pd.DataFrame,
     return expected_returns, covariance_matrix
 
 
-def fast_algorithm_portfolio(returns: pd.Series,
-                            cov_matrix: pd.DataFrame,
-                            risk_free_rate: float = 0.0,
-                            target_return: Optional[float] = None,
-                            long_only: bool = True,
-                            max_weight: Optional[float] = None,
-                            min_weight: Optional[float] = None) -> Tuple[pd.Series, Dict[str, Any]]:
+def fast_algorithm_portfolio(
+    returns: pd.Series,
+    cov_matrix: pd.DataFrame,
+    risk_free_rate: float = 0.0,
+    target_return: Optional[float] = None,
+    long_only: bool = True,
+    max_weight: Optional[float] = None,
+    min_weight: Optional[float] = None,
+) -> Tuple[pd.Series, Dict[str, Any]]:
     """
     Implements the Fast Algorithm for portfolio optimization.
 
@@ -137,7 +142,9 @@ def fast_algorithm_portfolio(returns: pd.Series,
         # Define the negative Sharpe ratio as the objective function (to minimize)
         def objective(weights: np.ndarray) -> float:
             portfolio_return = np.sum(returns * weights)
-            portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+            portfolio_volatility = np.sqrt(
+                np.dot(weights.T, np.dot(cov_matrix, weights))
+            )
             sharpe = (portfolio_return - risk_free_rate) / portfolio_volatility
             return -sharpe  # Negative because we're minimizing
     else:
@@ -150,14 +157,13 @@ def fast_algorithm_portfolio(returns: pd.Series,
     constraints: List[Dict[str, Any]] = []
 
     # Budget constraint (weights sum to 1)
-    constraints.append({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+    constraints.append({"type": "eq", "fun": lambda x: np.sum(x) - 1})
 
     # Return constraint (if target_return is specified)
     if target_return is not None:
-        constraints.append({
-            'type': 'eq',
-            'fun': lambda x: np.sum(returns * x) - target_return
-        })
+        constraints.append(
+            {"type": "eq", "fun": lambda x: np.sum(returns * x) - target_return}
+        )
 
     # Initial guess (equal weights)
     init_guess = np.ones(n) / n
@@ -175,11 +181,12 @@ def fast_algorithm_portfolio(returns: pd.Series,
             bounds = [(None, None) for _ in range(n)]
 
     # Run optimization
-    result = minimize(objective, init_guess, method='SLSQP',
-                     bounds=bounds, constraints=constraints)
+    result = minimize(
+        objective, init_guess, method="SLSQP", bounds=bounds, constraints=constraints
+    )
 
     # Get optimal weights and round very small weights to zero
-    optimal_weights = pd.Series(result['x'], index=returns.index)
+    optimal_weights = pd.Series(result["x"], index=returns.index)
 
     # Apply minimum weight constraint (post-optimization)
     if min_weight is not None:
@@ -193,25 +200,29 @@ def fast_algorithm_portfolio(returns: pd.Series,
 
     # Calculate portfolio metrics
     portfolio_return = np.sum(returns * optimal_weights)
-    portfolio_volatility = np.sqrt(np.dot(optimal_weights.T, np.dot(cov_matrix, optimal_weights)))
+    portfolio_volatility = np.sqrt(
+        np.dot(optimal_weights.T, np.dot(cov_matrix, optimal_weights))
+    )
     sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_volatility
 
     portfolio_info: Dict[str, Any] = {
-        'return': portfolio_return,
-        'volatility': portfolio_volatility,
-        'sharpe_ratio': sharpe_ratio,
-        'weights': optimal_weights
+        "return": portfolio_return,
+        "volatility": portfolio_volatility,
+        "sharpe_ratio": sharpe_ratio,
+        "weights": optimal_weights,
     }
 
     print(f"Optimization completed successfully. Sharpe ratio: {sharpe_ratio:.4f}")
     return optimal_weights, portfolio_info
 
 
-def generate_efficient_frontier(returns: pd.Series,
-                               cov_matrix: pd.DataFrame,
-                               risk_free_rate: float = 0.0,
-                               points: int = 20,
-                               long_only: bool = True) -> pd.DataFrame:
+def generate_efficient_frontier(
+    returns: pd.Series,
+    cov_matrix: pd.DataFrame,
+    risk_free_rate: float = 0.0,
+    points: int = 20,
+    long_only: bool = True,
+) -> pd.DataFrame:
     """
     Generate the efficient frontier.
 
@@ -235,10 +246,9 @@ def generate_efficient_frontier(returns: pd.Series,
     """
     # Find minimum variance portfolio
     min_var_weights, min_var_info = fast_algorithm_portfolio(
-        returns, cov_matrix, risk_free_rate, target_return=None,
-        long_only=long_only
+        returns, cov_matrix, risk_free_rate, target_return=None, long_only=long_only
     )
-    min_return = min_var_info['return']
+    min_return = min_var_info["return"]
 
     # Find maximum return portfolio (investing 100% in the asset with highest return)
     max_return_asset = returns.idxmax()
@@ -253,15 +263,20 @@ def generate_efficient_frontier(returns: pd.Series,
     for target_return in target_returns:
         try:
             _, portfolio_info = fast_algorithm_portfolio(
-                returns, cov_matrix, risk_free_rate,
-                target_return=target_return, long_only=long_only
+                returns,
+                cov_matrix,
+                risk_free_rate,
+                target_return=target_return,
+                long_only=long_only,
             )
 
-            efficient_frontier.append({
-                'return': portfolio_info['return'],
-                'volatility': portfolio_info['volatility'],
-                'sharpe_ratio': portfolio_info['sharpe_ratio']
-            })
+            efficient_frontier.append(
+                {
+                    "return": portfolio_info["return"],
+                    "volatility": portfolio_info["volatility"],
+                    "sharpe_ratio": portfolio_info["sharpe_ratio"],
+                }
+            )
         except:
             # Skip if optimization fails
             continue
@@ -269,8 +284,9 @@ def generate_efficient_frontier(returns: pd.Series,
     return pd.DataFrame(efficient_frontier)
 
 
-def analyze_portfolio_performance(weights: pd.Series,
-                                historical_returns: pd.DataFrame) -> Tuple[pd.Series, Dict[str, Any]]:
+def analyze_portfolio_performance(
+    weights: pd.Series, historical_returns: pd.DataFrame
+) -> Tuple[pd.Series, Dict[str, Any]]:
     """
     Analyze historical performance of a portfolio with given weights.
 
@@ -316,30 +332,34 @@ def analyze_portfolio_performance(weights: pd.Series,
     cvar_95 = portfolio_returns[portfolio_returns <= var_95].mean()
 
     # Calculate rolling annual returns
-    rolling_annual_returns = portfolio_returns.rolling(window=252).apply(lambda x: (1 + x).prod() - 1)
+    rolling_annual_returns = portfolio_returns.rolling(window=252).apply(
+        lambda x: (1 + x).prod() - 1
+    )
 
     performance_metrics: Dict[str, Any] = {
-        'cumulative_return': cumulative_return,
-        'annualized_return': annualized_return,
-        'annualized_volatility': annualized_volatility,
-        'sharpe_ratio': sharpe_ratio,
-        'max_drawdown': max_drawdown,
-        'var_95': var_95,
-        'cvar_95': cvar_95,
-        'rolling_annual_returns': rolling_annual_returns
+        "cumulative_return": cumulative_return,
+        "annualized_return": annualized_return,
+        "annualized_volatility": annualized_volatility,
+        "sharpe_ratio": sharpe_ratio,
+        "max_drawdown": max_drawdown,
+        "var_95": var_95,
+        "cvar_95": cvar_95,
+        "rolling_annual_returns": rolling_annual_returns,
     }
 
     print(f"Portfolio performance analysis completed")
     return portfolio_returns, performance_metrics
 
 
-def main(returns_file: str,
-         output_dir: str,
-         period: Optional[str] = None,
-         risk_free_rate: float = 0.02,
-         long_only: bool = True,
-         max_weight: float = 0.25,
-         min_weight: float = 0.01) -> None:
+def main(
+    returns_file: str,
+    output_dir: str,
+    period: Optional[str] = None,
+    risk_free_rate: float = 0.02,
+    long_only: bool = True,
+    max_weight: float = 0.25,
+    min_weight: float = 0.01,
+) -> None:
     """
     Main function to run the Fast Algorithm portfolio optimization.
 
@@ -372,9 +392,9 @@ def main(returns_file: str,
 
     # Define period date ranges
     periods: Dict[str, Tuple[str, str]] = {
-        'financial_crisis': ('2007-01-01', '2011-12-31'),
-        'post_crisis': ('2012-01-01', '2018-12-31'),
-        'recent': ('2019-01-01', '2023-12-31')
+        "financial_crisis": ("2007-01-01", "2011-12-31"),
+        "post_crisis": ("2012-01-01", "2018-12-31"),
+        "recent": ("2019-01-01", "2023-12-31"),
     }
 
     # Filter returns by period if specified
@@ -387,8 +407,12 @@ def main(returns_file: str,
 
     # Run Fast Algorithm optimization
     optimal_weights, portfolio_info = fast_algorithm_portfolio(
-        expected_returns, covariance_matrix, risk_free_rate,
-        long_only=long_only, max_weight=max_weight, min_weight=min_weight
+        expected_returns,
+        covariance_matrix,
+        risk_free_rate,
+        long_only=long_only,
+        max_weight=max_weight,
+        min_weight=min_weight,
     )
 
     # Analyze historical performance
@@ -398,27 +422,35 @@ def main(returns_file: str,
 
     # Save results
     # Save optimal weights
-    weights_file = os.path.join(output_dir, 'fa_optimal_weights.csv')
+    weights_file = os.path.join(output_dir, "fa_optimal_weights.csv")
     optimal_weights.to_csv(weights_file)
     print(f"Saved optimal weights to {weights_file}")
 
     # Save portfolio metrics
-    metrics_df = pd.DataFrame({
-        'metric': ['return', 'volatility', 'sharpe_ratio'],
-        'value': [portfolio_info['return'], portfolio_info['volatility'], portfolio_info['sharpe_ratio']]
-    })
-    metrics_file = os.path.join(output_dir, 'fa_portfolio_metrics.csv')
+    metrics_df = pd.DataFrame(
+        {
+            "metric": ["return", "volatility", "sharpe_ratio"],
+            "value": [
+                portfolio_info["return"],
+                portfolio_info["volatility"],
+                portfolio_info["sharpe_ratio"],
+            ],
+        }
+    )
+    metrics_file = os.path.join(output_dir, "fa_portfolio_metrics.csv")
     metrics_df.to_csv(metrics_file, index=False)
     print(f"Saved portfolio metrics to {metrics_file}")
 
     # Save portfolio returns
-    returns_file = os.path.join(output_dir, 'fa_portfolio_returns.csv')
-    portfolio_returns.to_frame('portfolio_return').to_csv(returns_file)
+    returns_file = os.path.join(output_dir, "fa_portfolio_returns.csv")
+    portfolio_returns.to_frame("portfolio_return").to_csv(returns_file)
     print(f"Saved portfolio returns to {returns_file}")
 
     # Save rolling annual returns for histogram
-    rolling_returns_file = os.path.join(output_dir, 'fa_rolling_annual_returns.csv')
-    performance_metrics['rolling_annual_returns'].to_frame('annual_return').to_csv(rolling_returns_file)
+    rolling_returns_file = os.path.join(output_dir, "fa_rolling_annual_returns.csv")
+    performance_metrics["rolling_annual_returns"].to_frame("annual_return").to_csv(
+        rolling_returns_file
+    )
     print(f"Saved rolling annual returns to {rolling_returns_file}")
 
     print(f"\nFast Algorithm optimization complete")
@@ -434,19 +466,44 @@ def main(returns_file: str,
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fast Algorithm portfolio optimization")
-    parser.add_argument("--data", "-d", required=True, help="Path to the returns CSV file")
-    parser.add_argument("--output", "-o", required=True, help="Directory to save output files")
-    parser.add_argument("--period", "-p", choices=['financial_crisis', 'post_crisis', 'recent'],
-                        help="Period to analyze")
-    parser.add_argument("--risk-free-rate", "-r", type=float, default=0.02,
-                        help="Risk-free rate (annualized)")
-    parser.add_argument("--max-weight", "-m", type=float, default=0.25,
-                        help="Maximum weight for any asset")
-    parser.add_argument("--min-weight", type=float, default=0.01,
-                        help="Minimum weight for any asset if included")
-    parser.add_argument("--allow-short", action="store_true",
-                        help="Allow short selling (not long-only)")
+    parser = argparse.ArgumentParser(
+        description="Fast Algorithm portfolio optimization"
+    )
+    parser.add_argument(
+        "--data", "-d", required=True, help="Path to the returns CSV file"
+    )
+    parser.add_argument(
+        "--output", "-o", required=True, help="Directory to save output files"
+    )
+    parser.add_argument(
+        "--period",
+        "-p",
+        choices=["financial_crisis", "post_crisis", "recent"],
+        help="Period to analyze",
+    )
+    parser.add_argument(
+        "--risk-free-rate",
+        "-r",
+        type=float,
+        default=0.02,
+        help="Risk-free rate (annualized)",
+    )
+    parser.add_argument(
+        "--max-weight",
+        "-m",
+        type=float,
+        default=0.25,
+        help="Maximum weight for any asset",
+    )
+    parser.add_argument(
+        "--min-weight",
+        type=float,
+        default=0.01,
+        help="Minimum weight for any asset if included",
+    )
+    parser.add_argument(
+        "--allow-short", action="store_true", help="Allow short selling (not long-only)"
+    )
 
     args = parser.parse_args()
 
@@ -457,5 +514,5 @@ if __name__ == "__main__":
         risk_free_rate=args.risk_free_rate,
         long_only=not args.allow_short,
         max_weight=args.max_weight,
-        min_weight=args.min_weight
+        min_weight=args.min_weight,
     )

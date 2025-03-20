@@ -57,10 +57,10 @@ def preprocess_data(data: pd.DataFrame) -> pd.DataFrame:
     df = data.copy()
 
     # Convert Date column to datetime
-    if 'Date' in df.columns:
-        df['Date'] = pd.to_datetime(df['Date'])
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"])
         # Set Date as index
-        df.set_index('Date', inplace=True)
+        df.set_index("Date", inplace=True)
         # Sort by date
         df = df.sort_index()
 
@@ -68,7 +68,7 @@ def preprocess_data(data: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def calculate_returns(prices: pd.DataFrame, method: str = 'simple') -> pd.DataFrame:
+def calculate_returns(prices: pd.DataFrame, method: str = "simple") -> pd.DataFrame:
     """
     Calculate returns from price data.
 
@@ -84,7 +84,7 @@ def calculate_returns(prices: pd.DataFrame, method: str = 'simple') -> pd.DataFr
     pd.DataFrame
         Returns data
     """
-    if method == 'log':
+    if method == "log":
         returns = np.log(prices / prices.shift(1))
     else:  # simple returns
         returns = prices.pct_change()
@@ -96,7 +96,7 @@ def calculate_returns(prices: pd.DataFrame, method: str = 'simple') -> pd.DataFr
     return returns
 
 
-def resample_returns(returns: pd.DataFrame, freq: str = 'M') -> pd.DataFrame:
+def resample_returns(returns: pd.DataFrame, freq: str = "M") -> pd.DataFrame:
     """
     Resample returns to a different frequency.
 
@@ -112,14 +112,16 @@ def resample_returns(returns: pd.DataFrame, freq: str = 'M') -> pd.DataFrame:
     pd.DataFrame
         Resampled returns
     """
-    if freq == 'D':
+    if freq == "D":
         return returns  # Already daily
 
     # For other frequencies, compound the returns
     return returns.resample(freq).apply(lambda x: (1 + x).prod() - 1)
 
 
-def calculate_statistics(returns: pd.DataFrame, periods_per_year: int = 252) -> pd.DataFrame:
+def calculate_statistics(
+    returns: pd.DataFrame, periods_per_year: int = 252
+) -> pd.DataFrame:
     """
     Calculate summary statistics for returns.
 
@@ -155,21 +157,24 @@ def calculate_statistics(returns: pd.DataFrame, periods_per_year: int = 252) -> 
     kurtosis = returns.kurtosis()
 
     # Compile statistics
-    stats = pd.DataFrame({
-        'annualized_return': mean_return,
-        'annualized_volatility': volatility,
-        'sharpe_ratio': sharpe_ratio,
-        'max_drawdown': max_drawdown,
-        'skewness': skewness,
-        'kurtosis': kurtosis
-    })
+    stats = pd.DataFrame(
+        {
+            "annualized_return": mean_return,
+            "annualized_volatility": volatility,
+            "sharpe_ratio": sharpe_ratio,
+            "max_drawdown": max_drawdown,
+            "skewness": skewness,
+            "kurtosis": kurtosis,
+        }
+    )
 
     print(f"Calculated summary statistics")
     return stats
 
 
-def split_by_period(returns: pd.DataFrame,
-                  periods: Dict[str, Tuple[str, str]]) -> Dict[str, pd.DataFrame]:
+def split_by_period(
+    returns: pd.DataFrame, periods: Dict[str, Tuple[str, str]]
+) -> Dict[str, pd.DataFrame]:
     """
     Split returns data by specified periods.
 
@@ -210,7 +215,7 @@ def prepare_sector_data(returns: pd.DataFrame) -> pd.DataFrame:
         Returns data for sector ETFs only
     """
     # List of sector ETFs
-    sector_etfs: List[str] = [col for col in returns.columns if col.startswith('XL')]
+    sector_etfs: List[str] = [col for col in returns.columns if col.startswith("XL")]
 
     # Filter returns data
     sector_returns = returns[sector_etfs]
@@ -219,7 +224,9 @@ def prepare_sector_data(returns: pd.DataFrame) -> pd.DataFrame:
     return sector_returns
 
 
-def save_processed_data(data_dict: Dict[str, pd.DataFrame], output_dir: str) -> List[str]:
+def save_processed_data(
+    data_dict: Dict[str, pd.DataFrame], output_dir: str
+) -> List[str]:
     """
     Save processed data to CSV files.
 
@@ -278,47 +285,51 @@ def main(input_file: str, output_dir: str) -> None:
 
     # Define periods for analysis
     periods = {
-        'full_period': (returns.index.min(), returns.index.max()),
-        'financial_crisis': ('2007-01-01', '2011-12-31'),
-        'post_crisis': ('2012-01-01', '2018-12-31'),
-        'recent': ('2019-01-01', '2023-12-31')
+        "full_period": (returns.index.min(), returns.index.max()),
+        "financial_crisis": ("2007-01-01", "2011-12-31"),
+        "post_crisis": ("2012-01-01", "2018-12-31"),
+        "recent": ("2019-01-01", "2023-12-31"),
     }
 
     # Split returns by period
     period_returns = split_by_period(returns, periods)
 
     # Calculate statistics for each period
-    period_stats = {f"{name}_stats": calculate_statistics(period_data)
-                    for name, period_data in period_returns.items()}
+    period_stats = {
+        f"{name}_stats": calculate_statistics(period_data)
+        for name, period_data in period_returns.items()
+    }
 
     # Prepare sector ETF data
     sector_returns = prepare_sector_data(returns)
 
     # Calculate correlation and covariance matrices for the recent period
-    recent_returns = period_returns['recent']
+    recent_returns = period_returns["recent"]
     correlation = recent_returns.corr()
     covariance = recent_returns.cov() * 252  # Annualized
 
     # Resample returns to different frequencies
-    monthly_returns = resample_returns(returns, freq='M')
-    quarterly_returns = resample_returns(returns, freq='Q')
+    monthly_returns = resample_returns(returns, freq="M")
+    quarterly_returns = resample_returns(returns, freq="Q")
 
     # Prepare data for the fast algorithm
-    fa_inputs = pd.DataFrame({
-        'expected_return': recent_returns.mean() * 252,  # Annualized
-        'volatility': recent_returns.std() * np.sqrt(252)  # Annualized
-    })
+    fa_inputs = pd.DataFrame(
+        {
+            "expected_return": recent_returns.mean() * 252,  # Annualized
+            "volatility": recent_returns.std() * np.sqrt(252),  # Annualized
+        }
+    )
 
     # Save all processed data
     data_to_save = {
-        'daily_returns': returns,
-        'monthly_returns': monthly_returns,
-        'quarterly_returns': quarterly_returns,
-        'sector_returns': sector_returns,
-        'recent_returns': recent_returns,
-        'correlation_matrix': correlation,
-        'covariance_matrix': covariance,
-        'fa_inputs': fa_inputs
+        "daily_returns": returns,
+        "monthly_returns": monthly_returns,
+        "quarterly_returns": quarterly_returns,
+        "sector_returns": sector_returns,
+        "recent_returns": recent_returns,
+        "correlation_matrix": correlation,
+        "covariance_matrix": covariance,
+        "fa_inputs": fa_inputs,
     }
 
     # Add period statistics
@@ -331,9 +342,15 @@ def main(input_file: str, output_dir: str) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process ETF price data for portfolio optimization")
-    parser.add_argument("--input", "-i", required=True, help="Path to the input CSV file")
-    parser.add_argument("--output", "-o", required=True, help="Directory to save the processed data")
+    parser = argparse.ArgumentParser(
+        description="Process ETF price data for portfolio optimization"
+    )
+    parser.add_argument(
+        "--input", "-i", required=True, help="Path to the input CSV file"
+    )
+    parser.add_argument(
+        "--output", "-o", required=True, help="Directory to save the processed data"
+    )
 
     args = parser.parse_args()
 
