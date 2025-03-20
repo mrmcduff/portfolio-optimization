@@ -130,6 +130,56 @@ def preprocess(args: argparse.Namespace) -> int:
     return run_command(command)
 
 
+# In run.py, add this function
+def compare_rebalancing(args: argparse.Namespace) -> int:
+    """
+    Compare different portfolio rebalancing strategies.
+
+    Parameters:
+    -----------
+    args : argparse.Namespace
+        Command line arguments
+
+    Returns:
+    --------
+    int
+        Exit code from the command
+    """
+    # Override defaults with any provided args
+    returns_file = args.returns or DEFAULT_PATHS["daily_returns"]
+    output_dir = args.output or os.path.join(
+        DEFAULT_PATHS["analysis_dir"], "rebalancing"
+    )
+
+    # Ensure output directory exists
+    ensure_directory_exists(output_dir)
+
+    # Build and run the command
+    command = [
+        "python",
+        "-m",
+        "src.analysis.compare_rebalancing",
+        "--returns",
+        returns_file,
+        "--output",
+        output_dir,
+    ]
+
+    # Add optional parameters
+    if args.stock:
+        command.extend(["--stock", args.stock])
+    if args.bond:
+        command.extend(["--bond", args.bond])
+    if args.weight:
+        command.extend(["--weight", str(args.weight)])
+    if args.risk_free_rate:
+        command.extend(["--risk-free-rate", str(args.risk_free_rate)])
+    if args.threshold:
+        command.extend(["--threshold", str(args.threshold)])
+
+    return run_command(command)
+
+
 def generate_benchmarks(args: argparse.Namespace) -> int:
     """
     Generate benchmark returns.
@@ -458,7 +508,49 @@ def main() -> int:
         type=float,
         help="Weight for stocks in balanced portfolio (default: 0.6)",
     )
+    # Add rebalancing options
+    benchmark_parser.add_argument(
+        "--rebalance",
+        choices=["none", "periodic", "threshold"],
+        default="periodic",
+        help="Rebalancing method (default: periodic)",
+    )
+    benchmark_parser.add_argument(
+        "--frequency",
+        choices=["D", "W", "M", "Q", "A"],
+        default="M",
+        help="Rebalancing frequency for periodic method (default: M for monthly)",
+    )
+    benchmark_parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.05,
+        help="Rebalancing threshold for threshold method (default: 0.05 or 5%%)",
+    )
 
+    # Rebalancing
+    rebalance_parser = subparsers.add_parser(
+        "rebalancing", help="Compare different portfolio rebalancing strategies"
+    )
+    rebalance_parser.add_argument(
+        "--returns",
+        "-r",
+        help=f"Returns data file (default: {DEFAULT_PATHS['daily_returns']})",
+    )
+    rebalance_parser.add_argument("--output", "-o", help="Directory to save results")
+    rebalance_parser.add_argument(
+        "--stock", "-s", default="SPY", help="Stock ETF symbol"
+    )
+    rebalance_parser.add_argument("--bond", "-b", default="BND", help="Bond ETF symbol")
+    rebalance_parser.add_argument(
+        "--weight", "-w", type=float, default=0.6, help="Target stock weight"
+    )
+    rebalance_parser.add_argument(
+        "--risk-free-rate", type=float, default=0.02, help="Risk-free rate (annualized)"
+    )
+    rebalance_parser.add_argument(
+        "--threshold", "-t", type=float, default=0.05, help="Rebalancing threshold"
+    )
     # Optimize command
     optimize_parser = subparsers.add_parser(
         "optimize", help="Run Fast Algorithm portfolio optimization"
@@ -571,6 +663,7 @@ def main() -> int:
         "benchmarks": generate_benchmarks,
         "optimize": optimize,
         "visualize": visualize,
+        "rebalancing": compare_rebalancing,
         "analyze": analyze,
         "all": run_all,
     }
