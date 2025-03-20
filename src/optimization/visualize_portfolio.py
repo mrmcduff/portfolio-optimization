@@ -34,7 +34,7 @@ def load_data(
         (weights, returns) or (None, None) if an error occurs
     """
     try:
-        weights = pd.read_csv(weights_file, index_col=0, header=None, squeeze=True)
+        weights = pd.read_csv(weights_file, index_col=0, header=None).squeeze()
         returns = pd.read_csv(returns_file, index_col=0, parse_dates=True)
 
         print(f"Loaded weights: {len(weights)} assets")

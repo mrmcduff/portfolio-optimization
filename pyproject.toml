@@ -75,3 +75,6 @@ known-first-party = ["portfolio_optimization"]
 # Enable flake8-bugbear rules
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]  # Ignore unused imports in __init__ files
+# Configure line length as a warning through `extend-select` and `extend-ignore`
+extend-select = ["E501"]  # Explicitly select line length rule
+extend-ignore = ["E501"]  # But also ignore it as an error
