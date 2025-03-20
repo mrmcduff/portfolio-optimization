@@ -7,8 +7,7 @@ including efficient frontier plots, performance comparisons, and return histogra
 
 import argparse
 import os
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -150,7 +149,8 @@ def plot_efficient_frontier(
                 target_ret, returns, cov_matrix, long_only
             )
             efficient_frontier.append({"return": ret, "volatility": vol})
-        except:
+        except Exception as e:
+            print(f"Could not optimize for target return {target_ret:.4f}: {e}")
             continue
 
     ef_df = pd.DataFrame(efficient_frontier)
@@ -520,7 +520,7 @@ def main(
     risk_free_rate : float, optional
         Risk-free rate (annualized), by default 0.02
     """
-    print(f"Generating portfolio visualizations")
+    print("Generating portfolio visualizations")
 
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)

@@ -7,8 +7,7 @@ as described in the Markowitz Mean-Variance Optimization framework.
 
 import argparse
 import os
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union, Any, Callable
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -277,8 +276,9 @@ def generate_efficient_frontier(
                     "sharpe_ratio": portfolio_info["sharpe_ratio"],
                 }
             )
-        except:
+        except Exception as e:
             # Skip if optimization fails
+            print(f"Optimization failed for target return {target_return:.4f}: {e}")
             continue
 
     return pd.DataFrame(efficient_frontier)
@@ -347,7 +347,7 @@ def analyze_portfolio_performance(
         "rolling_annual_returns": rolling_annual_returns,
     }
 
-    print(f"Portfolio performance analysis completed")
+    print("Portfolio performance analysis completed")
     return portfolio_returns, performance_metrics
 
 
@@ -380,7 +380,7 @@ def main(
     min_weight : float, optional
         Minimum weight for any asset if included, by default 0.01
     """
-    print(f"Running Fast Algorithm portfolio optimization")
+    print("Running Fast Algorithm portfolio optimization")
 
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -453,7 +453,7 @@ def main(
     )
     print(f"Saved rolling annual returns to {rolling_returns_file}")
 
-    print(f"\nFast Algorithm optimization complete")
+    print("\nFast Algorithm optimization complete")
     print(f"Portfolio expected return: {portfolio_info['return']:.4%}")
     print(f"Portfolio expected volatility: {portfolio_info['volatility']:.4%}")
     print(f"Portfolio Sharpe ratio: {portfolio_info['sharpe_ratio']:.4f}")

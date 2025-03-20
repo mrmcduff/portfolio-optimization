@@ -7,8 +7,7 @@ It generates returns, correlation matrices, and summary statistics.
 
 import argparse
 import os
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -105,7 +104,8 @@ def resample_returns(returns: pd.DataFrame, freq: str = "M") -> pd.DataFrame:
     returns : pd.DataFrame
         Returns data
     freq : str, optional
-        Frequency to resample to: 'D' (daily), 'W' (weekly), 'M' (monthly), 'Q' (quarterly), by default 'M'
+        Frequency to resample to: 'D' (daily), 'W' (weekly),
+        'M' (monthly), 'Q' (quarterly), by default 'M'
 
     Returns:
     --------
@@ -168,7 +168,7 @@ def calculate_statistics(
         }
     )
 
-    print(f"Calculated summary statistics")
+    print("Calculated summary statistics")
     return stats
 
 
