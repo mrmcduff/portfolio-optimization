@@ -69,6 +69,9 @@ uv pip install -e ".[dev]"
 
 ## Usage
 
+First, format your data as a `.csv` file and put it in the `data/raw/` directory. It should be named `course_project_data.csv` if you want
+to use the default scripts.
+
 ### Data Preprocessing
 
 ```bash

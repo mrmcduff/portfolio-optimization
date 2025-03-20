@@ -390,17 +390,31 @@ def create_summary_report(
 
     # Format metrics as percentage where appropriate
     formatted_metrics = metrics.copy()
-    for idx in [
+    percentage_rows = [
         "Total Return",
         "Annualized Return",
         "Annualized Volatility",
         "Max Drawdown",
         "Value at Risk (95%)",
-    ]:
-        if idx in formatted_metrics.index:
-            formatted_metrics.loc[idx] = formatted_metrics.loc[idx].map(
-                lambda x: f"{x:.2%}"
-            )
+        "Conditional VaR (95%)",
+    ]
+
+    # Create a new DataFrame for the formatted values
+    formatted_metrics_display = pd.DataFrame(
+        index=formatted_metrics.index, columns=formatted_metrics.columns
+    )
+
+    # Copy values, formatting percentages where appropriate
+    for idx in formatted_metrics.index:
+        for col in formatted_metrics.columns:
+            if idx in percentage_rows:
+                formatted_metrics_display.loc[
+                    idx, col
+                ] = f"{formatted_metrics.loc[idx, col]:.2%}"
+            else:
+                formatted_metrics_display.loc[idx, col] = formatted_metrics.loc[
+                    idx, col
+                ]
 
     # Convert to Markdown
     metrics_table = formatted_metrics.transpose().to_markdown()
