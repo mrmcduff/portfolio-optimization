@@ -67,31 +67,142 @@ uv pip install -e .
 uv pip install -e ".[dev]"
 ```
 
-## Usage
+# Using the Run Script
 
-First, format your data as a `.csv` file and put it in the `data/raw/` directory. It should be named `course_project_data.csv` if you want
-to use the default scripts.
+The run.py script provides a convenient command-line interface for executing all aspects of the portfolio optimization project. This tool streamlines common tasks by setting sensible defaults and handling the complex command arguments for you.
+
+## Basic Usage
+
+The script supports several commands that correspond to different steps in the portfolio optimization workflow:
+
+```bash
+# Make the script executable
+chmod +x run.py
+
+# View available commands
+./run.py --help
+```
+
+## Available Commands
 
 ### Data Preprocessing
 
+Preprocess the raw ETF data to calculate returns and prepare it for analysis:
+
 ```bash
-# Run the preprocessing script
-python -m src.preprocessing.process_etf_data --input data/raw/project_sample.csv --output data/processed/
+./run.py preprocess
 ```
+
+By default, this reads from `data/raw/course_project_data.csv` and outputs to `data/processed/.`
+
+### Generating Benchmarks
+
+Create standard benchmark returns for comparison:
+
+```bash
+./run.py benchmarks
+```
+
+This generates the S&P 500 (SPY) and 60/40 portfolio benchmarks with monthly rebalancing.
 
 ### Portfolio Optimization
 
-```bash
-# Run the Fast Algorithm benchmark
-python -m src.optimization.fast_algorithm --data data/processed/sector_returns.csv --period "2019-2023" --output results/models/fa_weights.csv
-```
-
-### Visualization
+Run the Fast Algorithm to create an optimized portfolio:
 
 ```bash
-# Run the visualization script
-python -m src.optimization.visualize_portfolio --weights results/models/fa_weights.csv --returns data/processed/sector_returns.csv --output results/figures/
+./run.py optimize --period recent
 ```
+
+The `--period` parameter can be `financial_crisis`, `post_crisis`, or `recent` to focus on specific market environments.
+
+### Visualizing Results
+
+Generate visualizations of your portfolio performance:
+
+```
+./run.py visualize
+```
+
+This creates charts comparing your optimized portfolio against benchmarks and showing asset allocations.
+
+### Analyzing Performance
+
+Perform comprehensive performance analysis:
+
+```bash
+./run.py analyze
+```
+
+This generates detailed performance metrics and creates a summary report.
+
+### Comparing Rebalancing Strategies
+
+Compare different portfolio rebalancing approaches:
+
+```bash
+./run.py rebalancing
+```
+
+This analyzes how various rebalancing methods (monthly, quarterly, threshold-based) affect portfolio performance.
+
+### Running the Complete Pipeline
+
+Execute all steps in sequence with a single command:
+
+```bash
+./run.py all
+```
+
+This runs the entire workflow from raw data to final analysis, using sensible defaults throughout.
+
+### Customizing Commands
+
+Each command accepts parameters to customize its behavior:
+
+```bash
+# Specify custom input and output locations
+./run.py preprocess --input custom_data.csv --output custom_output_dir/
+
+# Set a different risk-free rate for optimization
+./run.py optimize --risk-free-rate 0.03 --period recent
+
+# Customize the rebalancing analysis
+./run.py rebalancing --threshold 0.1 --stock SPY --bond BND
+```
+
+For a complete list of options for each command, use:
+
+```bash
+./run.py [command] --help
+```
+
+### Default File Paths
+
+The script uses these default paths unless overridden:
+
+- Raw data: `data/raw/course_project_data.csv`
+- Processed data: `data/processed/`
+- Model outputs: `results/models/`
+- Visualizations: `results/figures/`
+- Analysis reports: `results/analysis/`
+
+### Project Directory Structure
+
+When you run the script, it automatically creates any necessary directories following this structure:
+
+```
+portfolio-optimization/
+├── data/                      # Data directory
+│   ├── raw/                   # Raw unprocessed data
+│   └── processed/             # Processed data ready for analysis
+├── results/                   # Results directory
+│   ├── figures/               # Generated visualizations
+│   ├── models/                # Saved model parameters
+│   └── analysis/              # Performance analysis reports
+└── run.py                     # The convenience script
+```
+
+This command-line interface significantly simplifies the workflow for portfolio optimization, allowing you to focus on analyzing results rather than managing complex command arguments.
 
 ## Implemented Strategies
 
