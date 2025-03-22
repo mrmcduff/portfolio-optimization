@@ -30,21 +30,21 @@ dev = [
 line-length = 88
 include = '\.pyi?$'
 
-[tool.isort]
+[tool.lint.isort]
 profile = "black"
 line_length = 88
 
 [tool.ruff]
 # Enable flake8-bugbear (`B`) rules
-select = ["E", "F", "B", "I"]
-ignore = []
+lint.select = ["E", "F", "B", "I"]
+lint.ignore = []
 
 # Same as Black
 line-length = 88
 
 # Allow autofix for all enabled rules (when `--fix`) is provided
-fixable = ["ALL"]
-unfixable = []
+lint.fixable = ["ALL"]
+lint.unfixable = []
 
 # Exclude a variety of commonly ignored directories
 exclude = [
@@ -59,21 +59,21 @@ exclude = [
 ]
 
 # Allow unused variables when underscore-prefixed
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 # Assume Python 3.8
 target-version = "py38"
 
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 # Unlike Flake8, default to a complexity level of 10
 max-complexity = 10
 
 # Enable isort rules
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["portfolio_optimization"]
 
 # Enable flake8-bugbear rules
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Ignore unused imports in __init__ files
 # Configure line length as a warning through `extend-select` and `extend-ignore`
 extend-select = ["E501"]  # Explicitly select line length rule

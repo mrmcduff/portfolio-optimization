@@ -444,7 +444,7 @@ def run_all(args: argparse.Namespace) -> int:
     ]
 
     for step_name, step_func, step_args in steps:
-        print(f"\n{'='*80}\n=== Running Step: {step_name} ===\n{'='*80}\n")
+        print(f"\n{'=' * 80}\n=== Running Step: {step_name} ===\n{'=' * 80}\n")
         result = step_func(step_args)
         if result != 0:
             print(f"\nError in {step_name} step. Stopping pipeline.")

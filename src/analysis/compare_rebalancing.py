@@ -338,7 +338,7 @@ def main(
     pd.set_option("display.width", 1000)  # Wider display to prevent line wrapping
 
     print(
-        f"Comparing rebalancing strategies for {stock_weight:.0%}/{(1-stock_weight):.0%} {stock_symbol}/{bond_symbol} portfolio"
+        f"Comparing rebalancing strategies for {stock_weight:.0%}/{(1 - stock_weight):.0%} {stock_symbol}/{bond_symbol} portfolio"
     )
 
     # Load returns data

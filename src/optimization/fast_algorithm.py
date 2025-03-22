@@ -351,6 +351,191 @@ def analyze_portfolio_performance(
     return portfolio_returns, performance_metrics
 
 
+def analyze_portfolio_performance_with_rebalancing(
+    returns_data: pd.DataFrame,
+    optimization_function: Callable,
+    rebalance_frequency: str = "Q",  # 'D' (daily), 'W' (weekly), 'M' (monthly), 'Q' (quarterly), 'A' (annual)
+    lookback_window: int = 252,  # Trading days for parameter estimation
+    risk_free_rate: float = 0.02,
+    max_weight: Optional[float] = 0.25,
+    min_weight: Optional[float] = 0.01,
+    long_only: bool = True,
+) -> Tuple[pd.Series, Dict[str, Any]]:
+    """
+    Analyze historical performance of a portfolio with periodic rebalancing.
+
+    Parameters:
+    -----------
+    returns_data : pd.DataFrame
+        Historical asset returns
+    optimization_function : Callable
+        Function that performs the portfolio optimization (e.g., fast_algorithm_portfolio)
+    rebalance_frequency : str, optional
+        Frequency of rebalancing, by default 'Q' (quarterly)
+    lookback_window : int, optional
+        Number of trading days to use for parameter estimation, by default 252 (1 year)
+    risk_free_rate : float, optional
+        Risk-free rate (annualized), by default 0.02
+    max_weight : Optional[float], optional
+        Maximum weight for any asset, by default 0.25
+    min_weight : Optional[float], optional
+        Minimum weight for any asset if included, by default 0.01
+    long_only : bool, optional
+        Whether to enforce long-only constraint, by default True
+
+    Returns:
+    --------
+    Tuple[pd.Series, Dict[str, Any]]
+        (portfolio_returns, performance_metrics)
+    """
+    # Ensure index is sorted
+    returns_data = returns_data.sort_index()
+
+    # Map string frequency codes to pandas date offset objects
+    freq_map = {
+        "D": "D",
+        "W": "W",
+        "M": "ME",  # Month End
+        "Q": "QE",  # Quarter End
+        "A": "YE",  # Year End
+    }
+    rebal_freq = freq_map.get(rebalance_frequency, rebalance_frequency)
+
+    # Generate rebalancing dates
+    rebal_dates = pd.date_range(
+        start=returns_data.index.min(), end=returns_data.index.max(), freq=rebal_freq
+    )
+
+    # Add first date if not already present
+    if returns_data.index[0] not in rebal_dates:
+        rebal_dates = rebal_dates.insert(0, returns_data.index[0])
+
+    # Initialize tracking variables
+    portfolio_returns = pd.Series(index=returns_data.index)
+    current_weights = None
+    rebalancing_history = []
+
+    # Iterate through each period between rebalancing dates
+    for i in range(len(rebal_dates) - 1):
+        current_date = rebal_dates[i]
+        next_rebal_date = rebal_dates[i + 1]
+
+        # Get dates in the current period
+        period_mask = (returns_data.index >= current_date) & (
+            returns_data.index < next_rebal_date
+        )
+        period_dates = returns_data.index[period_mask]
+
+        if len(period_dates) == 0:
+            continue
+
+        # Rebalance at the start of the period
+        if current_weights is None or current_date in rebal_dates:
+            # Determine lookback window for parameter estimation
+            lookback_end = current_date
+            lookback_start = returns_data.index[returns_data.index <= lookback_end][
+                -min(lookback_window, len(returns_data.index)) :
+            ][0]
+
+            # Filter data for the lookback period
+            lookback_data = returns_data.loc[lookback_start:lookback_end]
+
+            # Prepare optimization inputs
+            expected_returns, cov_matrix = prepare_optimization_inputs(lookback_data)
+
+            # Run optimization
+            try:
+                optimal_weights, _ = optimization_function(
+                    expected_returns,
+                    cov_matrix,
+                    risk_free_rate=risk_free_rate,
+                    long_only=long_only,
+                    max_weight=max_weight,
+                    min_weight=min_weight,
+                )
+                current_weights = optimal_weights
+
+                # Record rebalancing event
+                rebalancing_history.append(
+                    {"date": current_date, "weights": current_weights.to_dict()}
+                )
+
+                print(f"Rebalanced portfolio on {current_date.date()}")
+            except Exception as e:
+                print(f"Optimization failed for date {current_date.date()}: {e}")
+                if current_weights is None:
+                    # For the first period, if optimization fails, use equal weights
+                    current_weights = pd.Series(
+                        1 / len(returns_data.columns), index=returns_data.columns
+                    )
+                # else continue with previous weights
+
+        # Calculate period returns using current weights
+        period_returns = returns_data.loc[period_dates]
+        for date in period_dates:
+            # Filter to common assets between weights and available returns
+            common_assets = set(current_weights.index) & set(period_returns.columns)
+            filtered_weights = current_weights[list(common_assets)]
+
+            # Normalize weights to sum to 1
+            filtered_weights = filtered_weights / filtered_weights.sum()
+
+            # Calculate portfolio return for this day
+            if date in period_returns.index:
+                day_return = (
+                    period_returns.loc[date, list(common_assets)] * filtered_weights
+                ).sum()
+                portfolio_returns.loc[date] = day_return
+
+    # Clean up any missing values
+    portfolio_returns = portfolio_returns.dropna()
+
+    if len(portfolio_returns) == 0:
+        raise ValueError(
+            "No portfolio returns were calculated. Check your data and rebalancing settings."
+        )
+
+    # Calculate performance metrics
+    cumulative_return = (1 + portfolio_returns).prod() - 1
+    annualized_return = (1 + portfolio_returns.mean()) ** 252 - 1
+    annualized_volatility = portfolio_returns.std() * np.sqrt(252)
+    sharpe_ratio = (annualized_return - risk_free_rate) / annualized_volatility
+
+    # Maximum drawdown
+    cumulative_returns = (1 + portfolio_returns).cumprod()
+    running_max = cumulative_returns.cummax()
+    drawdown = (cumulative_returns / running_max) - 1
+    max_drawdown = drawdown.min()
+
+    # Value at Risk (95%)
+    var_95 = portfolio_returns.quantile(0.05)
+
+    # Conditional VaR (95%)
+    cvar_95 = portfolio_returns[portfolio_returns <= var_95].mean()
+
+    # Calculate rolling annual returns
+    rolling_annual_returns = portfolio_returns.rolling(window=252).apply(
+        lambda x: (1 + x).prod() - 1
+    )
+
+    performance_metrics = {
+        "cumulative_return": cumulative_return,
+        "annualized_return": annualized_return,
+        "annualized_volatility": annualized_volatility,
+        "sharpe_ratio": sharpe_ratio,
+        "max_drawdown": max_drawdown,
+        "var_95": var_95,
+        "cvar_95": cvar_95,
+        "rolling_annual_returns": rolling_annual_returns,
+        "rebalancing_history": rebalancing_history,
+    }
+
+    print(
+        f"Portfolio performance analysis completed with {len(rebalancing_history)} rebalancing events"
+    )
+    return portfolio_returns, performance_metrics
+
+
 def main(
     returns_file: str,
     output_dir: str,

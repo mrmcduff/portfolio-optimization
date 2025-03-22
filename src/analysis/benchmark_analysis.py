@@ -227,7 +227,7 @@ def plot_rolling_metrics(
 
     plt.xlabel("Date")
     plt.ylabel(f"Rolling {window}-day Annualized Return")
-    plt.title(f"Rolling {window/252:.1f}-Year Annualized Returns")
+    plt.title(f"Rolling {window / 252:.1f}-Year Annualized Returns")
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.tight_layout()
@@ -245,7 +245,7 @@ def plot_rolling_metrics(
 
     plt.xlabel("Date")
     plt.ylabel(f"Rolling {window}-day Annualized Volatility")
-    plt.title(f"Rolling {window/252:.1f}-Year Annualized Volatility")
+    plt.title(f"Rolling {window / 252:.1f}-Year Annualized Volatility")
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.tight_layout()
@@ -263,7 +263,7 @@ def plot_rolling_metrics(
 
     plt.xlabel("Date")
     plt.ylabel(f"Rolling {window}-day Sharpe Ratio")
-    plt.title(f"Rolling {window/252:.1f}-Year Sharpe Ratio")
+    plt.title(f"Rolling {window / 252:.1f}-Year Sharpe Ratio")
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.tight_layout()

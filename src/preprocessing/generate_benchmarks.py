@@ -100,7 +100,7 @@ def create_balanced_portfolio(
     balanced_returns.name = f"{stock_symbol}/{bond_symbol} No Rebalancing"
 
     print(
-        f"Created {stock_weight*100:.0f}/{(1-stock_weight)*100:.0f} "
+        f"Created {stock_weight * 100:.0f}/{(1 - stock_weight) * 100:.0f} "
         f"{stock_symbol}/{bond_symbol} portfolio (no rebalancing) with {len(balanced_returns)} data points"
     )
 
@@ -213,7 +213,7 @@ def create_periodically_rebalanced_portfolio(
     )
 
     print(
-        f"Created {stock_weight*100:.0f}/{(1-stock_weight)*100:.0f} "
+        f"Created {stock_weight * 100:.0f}/{(1 - stock_weight) * 100:.0f} "
         f"{stock_symbol}/{bond_symbol} portfolio ({rebalancing_type.lower()} rebalancing) "
         f"with {len(rebalanced_returns)} data points"
     )
@@ -304,12 +304,12 @@ def create_threshold_rebalanced_portfolio(
 
     # Set name for the series
     rebalanced_returns.name = (
-        f"{stock_symbol}/{bond_symbol} {threshold*100:.0f}% Threshold Rebalancing"
+        f"{stock_symbol}/{bond_symbol} {threshold * 100:.0f}% Threshold Rebalancing"
     )
 
     print(
-        f"Created {stock_weight*100:.0f}/{(1-stock_weight)*100:.0f} "
-        f"{stock_symbol}/{bond_symbol} portfolio ({threshold*100:.0f}% threshold rebalancing) "
+        f"Created {stock_weight * 100:.0f}/{(1 - stock_weight) * 100:.0f} "
+        f"{stock_symbol}/{bond_symbol} portfolio ({threshold * 100:.0f}% threshold rebalancing) "
         f"with {len(rebalanced_returns)} data points"
     )
     print(
@@ -391,7 +391,7 @@ def main(
                 threshold=rebalance_threshold,
             )
             balanced_name = (
-                f"balanced_returns_threshold_{int(rebalance_threshold*100)}pct"
+                f"balanced_returns_threshold_{int(rebalance_threshold * 100)}pct"
             )
         else:
             # Periodic rebalancing (default)
