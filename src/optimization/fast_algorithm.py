@@ -7,7 +7,7 @@ as described in the Markowitz Mean-Variance Optimization framework.
 
 import argparse
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -544,6 +544,9 @@ def main(
     long_only: bool = True,
     max_weight: float = 0.25,
     min_weight: float = 0.01,
+    rebalance: bool = False,
+    rebalance_frequency: str = "Q",
+    lookback_window: int = 252,
 ) -> None:
     """
     Main function to run the Fast Algorithm portfolio optimization.
@@ -564,6 +567,12 @@ def main(
         Maximum weight for any asset, by default 0.25
     min_weight : float, optional
         Minimum weight for any asset if included, by default 0.01
+    rebalance : bool, optional
+        Whether to perform periodic rebalancing, by default False
+    rebalance_frequency : str, optional
+        Frequency of rebalancing ('D', 'W', 'M', 'Q', 'A'), by default 'Q'
+    lookback_window : int, optional
+        Number of trading days to use for parameter estimation, by default 252
     """
     print("Running Fast Algorithm portfolio optimization")
 
@@ -600,10 +609,35 @@ def main(
         min_weight=min_weight,
     )
 
-    # Analyze historical performance
-    portfolio_returns, performance_metrics = analyze_portfolio_performance(
-        optimal_weights, returns_data
-    )
+    # Run optimization
+    if rebalance:
+        print(
+            f"Using {rebalance_frequency} rebalancing with {lookback_window}-day lookback window"
+        )
+        (
+            portfolio_returns,
+            performance_metrics,
+        ) = analyze_portfolio_performance_with_rebalancing(
+            returns_data,
+            fast_algorithm_portfolio,
+            rebalance_frequency=rebalance_frequency,
+            lookback_window=lookback_window,
+            risk_free_rate=risk_free_rate,
+            long_only=long_only,
+            max_weight=max_weight,
+            min_weight=min_weight,
+        )
+
+        # Save rebalancing history
+        rebalancing_df = pd.DataFrame(performance_metrics["rebalancing_history"])
+        rebalancing_file = os.path.join(output_dir, "fa_rebalancing_history.csv")
+        rebalancing_df.to_csv(rebalancing_file, index=False)
+        print(f"Saved rebalancing history to {rebalancing_file}")
+    else:
+        # Analyze historical performance
+        portfolio_returns, performance_metrics = analyze_portfolio_performance(
+            optimal_weights, returns_data
+        )
 
     # Save results
     # Save optimal weights
@@ -690,6 +724,24 @@ if __name__ == "__main__":
         "--allow-short", action="store_true", help="Allow short selling (not long-only)"
     )
 
+    # Add rebalancing arguments
+    parser.add_argument(
+        "--rebalance-portfolio",
+        action="store_true",
+        help="Enable periodic rebalancing of the optimized portfolio",
+    )
+    parser.add_argument(
+        "--rebalance-frequency",
+        choices=["D", "W", "M", "Q", "A"],
+        default="Q",
+        help="Frequency for portfolio rebalancing (if enabled)",
+    )
+    parser.add_argument(
+        "--estimation-window",
+        type=int,
+        default=252,
+        help="Lookback window in trading days for parameter estimation",
+    )
     args = parser.parse_args()
 
     main(
@@ -700,4 +752,7 @@ if __name__ == "__main__":
         long_only=not args.allow_short,
         max_weight=args.max_weight,
         min_weight=args.min_weight,
+        rebalance=args.rebalance_portfolio,
+        rebalance_frequency=args.rebalance_frequency,
+        lookback_window=args.estimation_window,
     )

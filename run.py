@@ -110,8 +110,8 @@ def preprocess(args: argparse.Namespace) -> int:
         Exit code from the command
     """
     # Override defaults with any provided args
-    input_file = args.input or DEFAULT_PATHS["raw_data"]
-    output_dir = args.output or DEFAULT_PATHS["processed_dir"]
+    input_file = getattr(args, "input", None) or DEFAULT_PATHS["raw_data"]
+    output_dir = getattr(args, "output", None) or DEFAULT_PATHS["processed_dir"]
 
     # Ensure output directory exists
     ensure_directory_exists(output_dir)
@@ -126,56 +126,6 @@ def preprocess(args: argparse.Namespace) -> int:
         "--output",
         output_dir,
     ]
-
-    return run_command(command)
-
-
-# In run.py, add this function
-def compare_rebalancing(args: argparse.Namespace) -> int:
-    """
-    Compare different portfolio rebalancing strategies.
-
-    Parameters:
-    -----------
-    args : argparse.Namespace
-        Command line arguments
-
-    Returns:
-    --------
-    int
-        Exit code from the command
-    """
-    # Override defaults with any provided args
-    returns_file = args.returns or DEFAULT_PATHS["daily_returns"]
-    output_dir = args.output or os.path.join(
-        DEFAULT_PATHS["analysis_dir"], "rebalancing"
-    )
-
-    # Ensure output directory exists
-    ensure_directory_exists(output_dir)
-
-    # Build and run the command
-    command = [
-        "python",
-        "-m",
-        "src.analysis.compare_rebalancing",
-        "--returns",
-        returns_file,
-        "--output",
-        output_dir,
-    ]
-
-    # Add optional parameters
-    if args.stock:
-        command.extend(["--stock", args.stock])
-    if args.bond:
-        command.extend(["--bond", args.bond])
-    if args.weight:
-        command.extend(["--weight", str(args.weight)])
-    if args.risk_free_rate:
-        command.extend(["--risk-free-rate", str(args.risk_free_rate)])
-    if args.threshold:
-        command.extend(["--threshold", str(args.threshold)])
 
     return run_command(command)
 
@@ -195,8 +145,8 @@ def generate_benchmarks(args: argparse.Namespace) -> int:
         Exit code from the command
     """
     # Override defaults with any provided args
-    returns_file = args.returns or DEFAULT_PATHS["daily_returns"]
-    output_dir = args.output or DEFAULT_PATHS["processed_dir"]
+    returns_file = getattr(args, "returns", None) or DEFAULT_PATHS["daily_returns"]
+    output_dir = getattr(args, "output", None) or DEFAULT_PATHS["processed_dir"]
 
     # Ensure output directory exists
     ensure_directory_exists(output_dir)
@@ -213,12 +163,20 @@ def generate_benchmarks(args: argparse.Namespace) -> int:
     ]
 
     # Add optional parameters if provided
-    if args.stock:
+    if hasattr(args, "stock") and args.stock:
         command.extend(["--stock", args.stock])
-    if args.bond:
+    if hasattr(args, "bond") and args.bond:
         command.extend(["--bond", args.bond])
-    if args.weight:
+    if hasattr(args, "weight") and args.weight:
         command.extend(["--weight", str(args.weight)])
+
+    # Add benchmark rebalancing parameters
+    if hasattr(args, "rebalance") and args.rebalance:
+        command.extend(["--rebalance", args.rebalance])
+    if hasattr(args, "frequency") and args.frequency:
+        command.extend(["--frequency", args.frequency])
+    if hasattr(args, "threshold") and args.threshold:
+        command.extend(["--threshold", str(args.threshold)])
 
     return run_command(command)
 
@@ -238,8 +196,8 @@ def optimize(args: argparse.Namespace) -> int:
         Exit code from the command
     """
     # Override defaults with any provided args
-    data_file = args.data or DEFAULT_PATHS["sector_returns"]
-    output_dir = args.output or DEFAULT_PATHS["models_dir"]
+    data_file = getattr(args, "data", None) or DEFAULT_PATHS["sector_returns"]
+    output_dir = getattr(args, "output", None) or DEFAULT_PATHS["models_dir"]
 
     # Ensure output directory exists
     ensure_directory_exists(output_dir)
@@ -256,16 +214,24 @@ def optimize(args: argparse.Namespace) -> int:
     ]
 
     # Add optional parameters if provided
-    if args.period:
+    if hasattr(args, "period") and args.period:
         command.extend(["--period", args.period])
-    if args.risk_free_rate:
+    if hasattr(args, "risk_free_rate") and args.risk_free_rate:
         command.extend(["--risk-free-rate", str(args.risk_free_rate)])
-    if args.max_weight:
+    if hasattr(args, "max_weight") and args.max_weight:
         command.extend(["--max-weight", str(args.max_weight)])
-    if args.min_weight:
+    if hasattr(args, "min_weight") and args.min_weight:
         command.extend(["--min-weight", str(args.min_weight)])
-    if args.allow_short:
+    if hasattr(args, "allow_short") and args.allow_short:
         command.append("--allow-short")
+
+    # Add Fast Algorithm rebalancing parameters
+    if hasattr(args, "rebalance_portfolio") and args.rebalance_portfolio:
+        command.append("--rebalance-portfolio")
+    if hasattr(args, "rebalance_frequency") and args.rebalance_frequency:
+        command.extend(["--rebalance-frequency", args.rebalance_frequency])
+    if hasattr(args, "estimation_window") and args.estimation_window:
+        command.extend(["--estimation-window", str(args.estimation_window)])
 
     return run_command(command)
 
@@ -285,9 +251,9 @@ def visualize(args: argparse.Namespace) -> int:
         Exit code from the command
     """
     # Override defaults with any provided args
-    weights_file = args.weights or DEFAULT_PATHS["fa_weights"]
-    returns_file = args.returns or DEFAULT_PATHS["sector_returns"]
-    output_dir = args.output or DEFAULT_PATHS["figures_dir"]
+    weights_file = getattr(args, "weights", None) or DEFAULT_PATHS["fa_weights"]
+    returns_file = getattr(args, "returns", None) or DEFAULT_PATHS["sector_returns"]
+    output_dir = getattr(args, "output", None) or DEFAULT_PATHS["figures_dir"]
 
     # Ensure output directory exists
     ensure_directory_exists(output_dir)
@@ -306,17 +272,17 @@ def visualize(args: argparse.Namespace) -> int:
     ]
 
     # Add optional parameters if provided
-    if args.spy_benchmark:
+    if hasattr(args, "spy_benchmark") and args.spy_benchmark:
         command.extend(["--spy-benchmark", args.spy_benchmark])
     elif os.path.exists(DEFAULT_PATHS["spy_returns"]):
         command.extend(["--spy-benchmark", DEFAULT_PATHS["spy_returns"]])
 
-    if args.bond_benchmark:
+    if hasattr(args, "bond_benchmark") and args.bond_benchmark:
         command.extend(["--bond-benchmark", args.bond_benchmark])
     elif os.path.exists(DEFAULT_PATHS["balanced_returns"]):
         command.extend(["--bond-benchmark", DEFAULT_PATHS["balanced_returns"]])
 
-    if args.risk_free_rate:
+    if hasattr(args, "risk_free_rate") and args.risk_free_rate:
         command.extend(["--risk-free-rate", str(args.risk_free_rate)])
 
     return run_command(command)
@@ -337,11 +303,11 @@ def analyze(args: argparse.Namespace) -> int:
         Exit code from the command
     """
     # Ensure output directory exists
-    output_dir = args.output or DEFAULT_PATHS["analysis_dir"]
+    output_dir = getattr(args, "output", None) or DEFAULT_PATHS["analysis_dir"]
     ensure_directory_exists(output_dir)
 
     # Determine files to analyze
-    files = args.files or []
+    files = getattr(args, "files", None) or []
     if not files:
         # Use defaults if available
         default_files = []
@@ -364,7 +330,7 @@ def analyze(args: argparse.Namespace) -> int:
     command.extend(["--output", output_dir])
 
     # Add names if provided
-    if args.names:
+    if hasattr(args, "names") and args.names:
         command.append("--names")
         command.extend(args.names)
     elif len(files) == 3:
@@ -374,13 +340,61 @@ def analyze(args: argparse.Namespace) -> int:
         )
 
     # Add risk-free rate if provided
-    if args.risk_free_rate:
+    if hasattr(args, "risk_free_rate") and args.risk_free_rate:
         command.extend(["--risk-free-rate", str(args.risk_free_rate)])
 
     return run_command(command)
 
 
-# In the run_all function, modify it to create a new namespace with default paths
+def compare_rebalancing(args: argparse.Namespace) -> int:
+    """
+    Compare different portfolio rebalancing strategies.
+
+    Parameters:
+    -----------
+    args : argparse.Namespace
+        Command line arguments
+
+    Returns:
+    --------
+    int
+        Exit code from the command
+    """
+    # Override defaults with any provided args
+    returns_file = getattr(args, "returns", None) or DEFAULT_PATHS["daily_returns"]
+    output_dir = getattr(args, "output", None) or os.path.join(
+        DEFAULT_PATHS["analysis_dir"], "rebalancing"
+    )
+
+    # Ensure output directory exists
+    ensure_directory_exists(output_dir)
+
+    # Build and run the command
+    command = [
+        "python",
+        "-m",
+        "src.analysis.compare_rebalancing",
+        "--returns",
+        returns_file,
+        "--output",
+        output_dir,
+    ]
+
+    # Add optional parameters
+    if hasattr(args, "stock") and args.stock:
+        command.extend(["--stock", args.stock])
+    if hasattr(args, "bond") and args.bond:
+        command.extend(["--bond", args.bond])
+    if hasattr(args, "weight") and args.weight:
+        command.extend(["--weight", str(args.weight)])
+    if hasattr(args, "risk_free_rate") and args.risk_free_rate:
+        command.extend(["--risk-free-rate", str(args.risk_free_rate)])
+    if hasattr(args, "threshold") and args.threshold:
+        command.extend(["--threshold", str(args.threshold)])
+
+    return run_command(command)
+
+
 def run_all(args: argparse.Namespace) -> int:
     """
     Run all steps of the portfolio optimization pipeline.
@@ -395,9 +409,9 @@ def run_all(args: argparse.Namespace) -> int:
     int
         Exit code from the command
     """
-    # Create default arguments for each step
+    # Create default args for each step
     preprocess_args = argparse.Namespace(
-        input=args.input, output=DEFAULT_PATHS["processed_dir"]
+        input=getattr(args, "input", None), output=DEFAULT_PATHS["processed_dir"]
     )
 
     benchmark_args = argparse.Namespace(
@@ -406,16 +420,22 @@ def run_all(args: argparse.Namespace) -> int:
         stock=None,
         bond=None,
         weight=None,
+        rebalance="periodic",
+        frequency="M",
+        threshold=0.05,
     )
 
     optimize_args = argparse.Namespace(
         data=DEFAULT_PATHS["sector_returns"],
         output=DEFAULT_PATHS["models_dir"],
-        period=args.period,
-        risk_free_rate=args.risk_free_rate,
-        max_weight=None,
-        min_weight=None,
+        period=getattr(args, "period", "recent"),
+        risk_free_rate=getattr(args, "risk_free_rate", 0.02),
+        max_weight=0.25,
+        min_weight=0.01,
         allow_short=False,
+        rebalance_portfolio=getattr(args, "rebalance_portfolio", False),
+        rebalance_frequency=getattr(args, "rebalance_frequency", "Q"),
+        estimation_window=getattr(args, "estimation_window", 252),
     )
 
     visualize_args = argparse.Namespace(
@@ -424,13 +444,13 @@ def run_all(args: argparse.Namespace) -> int:
         output=DEFAULT_PATHS["figures_dir"],
         spy_benchmark=DEFAULT_PATHS["spy_returns"],
         bond_benchmark=DEFAULT_PATHS["balanced_returns"],
-        risk_free_rate=args.risk_free_rate,
+        risk_free_rate=getattr(args, "risk_free_rate", 0.02),
     )
 
     analyze_args = argparse.Namespace(
         files=None,
         names=None,
-        risk_free_rate=args.risk_free_rate,
+        risk_free_rate=getattr(args, "risk_free_rate", 0.02),
         output=DEFAULT_PATHS["analysis_dir"],
     )
 
@@ -508,12 +528,12 @@ def main() -> int:
         type=float,
         help="Weight for stocks in balanced portfolio (default: 0.6)",
     )
-    # Add rebalancing options
+    # Add rebalancing options for benchmarks
     benchmark_parser.add_argument(
         "--rebalance",
         choices=["none", "periodic", "threshold"],
         default="periodic",
-        help="Rebalancing method (default: periodic)",
+        help="Rebalancing method for benchmarks (default: periodic)",
     )
     benchmark_parser.add_argument(
         "--frequency",
@@ -528,29 +548,6 @@ def main() -> int:
         help="Rebalancing threshold for threshold method (default: 0.05 or 5%%)",
     )
 
-    # Rebalancing
-    rebalance_parser = subparsers.add_parser(
-        "rebalancing", help="Compare different portfolio rebalancing strategies"
-    )
-    rebalance_parser.add_argument(
-        "--returns",
-        "-r",
-        help=f"Returns data file (default: {DEFAULT_PATHS['daily_returns']})",
-    )
-    rebalance_parser.add_argument("--output", "-o", help="Directory to save results")
-    rebalance_parser.add_argument(
-        "--stock", "-s", default="SPY", help="Stock ETF symbol"
-    )
-    rebalance_parser.add_argument("--bond", "-b", default="BND", help="Bond ETF symbol")
-    rebalance_parser.add_argument(
-        "--weight", "-w", type=float, default=0.6, help="Target stock weight"
-    )
-    rebalance_parser.add_argument(
-        "--risk-free-rate", type=float, default=0.02, help="Risk-free rate (annualized)"
-    )
-    rebalance_parser.add_argument(
-        "--threshold", "-t", type=float, default=0.05, help="Rebalancing threshold"
-    )
     # Optimize command
     optimize_parser = subparsers.add_parser(
         "optimize", help="Run Fast Algorithm portfolio optimization"
@@ -582,6 +579,24 @@ def main() -> int:
     )
     optimize_parser.add_argument(
         "--allow-short", action="store_true", help="Allow short selling (not long-only)"
+    )
+    # Add rebalancing options for Fast Algorithm
+    optimize_parser.add_argument(
+        "--rebalance-portfolio",
+        action="store_true",
+        help="Enable periodic rebalancing for the Fast Algorithm portfolio",
+    )
+    optimize_parser.add_argument(
+        "--rebalance-frequency",
+        choices=["D", "W", "M", "Q", "A"],
+        default="Q",
+        help="Frequency for portfolio rebalancing (default: Q for quarterly)",
+    )
+    optimize_parser.add_argument(
+        "--estimation-window",
+        type=int,
+        default=252,
+        help="Lookback window in trading days for parameter estimation (default: 252 days)",
     )
 
     # Visualize command
@@ -628,6 +643,30 @@ def main() -> int:
         help=f"Output directory (default: {DEFAULT_PATHS['analysis_dir']})",
     )
 
+    # Rebalancing comparison command
+    rebalance_parser = subparsers.add_parser(
+        "rebalancing", help="Compare different portfolio rebalancing strategies"
+    )
+    rebalance_parser.add_argument(
+        "--returns",
+        "-r",
+        help=f"Returns data file (default: {DEFAULT_PATHS['daily_returns']})",
+    )
+    rebalance_parser.add_argument("--output", "-o", help="Directory to save results")
+    rebalance_parser.add_argument(
+        "--stock", "-s", default="SPY", help="Stock ETF symbol"
+    )
+    rebalance_parser.add_argument("--bond", "-b", default="BND", help="Bond ETF symbol")
+    rebalance_parser.add_argument(
+        "--weight", "-w", type=float, default=0.6, help="Target stock weight"
+    )
+    rebalance_parser.add_argument(
+        "--risk-free-rate", type=float, default=0.02, help="Risk-free rate (annualized)"
+    )
+    rebalance_parser.add_argument(
+        "--threshold", "-t", type=float, default=0.05, help="Rebalancing threshold"
+    )
+
     # Run all command
     all_parser = subparsers.add_parser("all", help="Run all steps in sequence")
     # We'll use the same arguments for each step when running all
@@ -648,6 +687,24 @@ def main() -> int:
         default=0.02,
         help="Risk-free rate (annualized) (default: 0.02)",
     )
+    # Add rebalancing options for the all command
+    all_parser.add_argument(
+        "--rebalance-portfolio",
+        action="store_true",
+        help="Enable periodic rebalancing for the Fast Algorithm portfolio",
+    )
+    all_parser.add_argument(
+        "--rebalance-frequency",
+        choices=["D", "W", "M", "Q", "A"],
+        default="Q",
+        help="Frequency for portfolio rebalancing (default: Q for quarterly)",
+    )
+    all_parser.add_argument(
+        "--estimation-window",
+        type=int,
+        default=252,
+        help="Lookback window in trading days for parameter estimation (default: 252 days)",
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -663,8 +720,8 @@ def main() -> int:
         "benchmarks": generate_benchmarks,
         "optimize": optimize,
         "visualize": visualize,
-        "rebalancing": compare_rebalancing,
         "analyze": analyze,
+        "rebalancing": compare_rebalancing,
         "all": run_all,
     }
 

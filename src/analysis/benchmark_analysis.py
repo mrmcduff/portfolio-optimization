@@ -95,7 +95,7 @@ def calculate_performance_metrics(
     metrics: Dict[str, Dict[str, float]] = {}
 
     # Daily risk-free rate
-    daily_rf = (1 + risk_free_rate) ** (1 / periods_per_year) - 1
+    # daily_rf = (1 + risk_free_rate) ** (1 / periods_per_year) - 1
 
     for column in returns.columns:
         series = returns[column].dropna()
