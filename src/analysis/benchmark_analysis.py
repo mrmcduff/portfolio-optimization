@@ -518,6 +518,11 @@ def main(
 
     # Print drawdown statistics
     print("\nDrawdown Statistics:")
+    # Configure pandas to show all rows and columns
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.max_columns", None)
+    pd.set_option("display.width", 1000)  # Wider display to prevent line wrapping
+
     print(drawdown_stats)
 
     # Create summary report
