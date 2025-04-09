@@ -216,6 +216,16 @@ def optimize(args: argparse.Namespace) -> int:
     # Add optional parameters if provided
     if hasattr(args, "period") and args.period:
         command.extend(["--period", args.period])
+
+        # Add custom period parameters if using custom period
+        if args.period == "custom":
+            if hasattr(args, "start_date") and args.start_date:
+                command.extend(["--start-date", args.start_date])
+            if hasattr(args, "end_date") and args.end_date:
+                command.extend(["--end-date", args.end_date])
+            if hasattr(args, "years") and args.years:
+                command.extend(["--years", str(args.years)])
+
     if hasattr(args, "risk_free_rate") and args.risk_free_rate:
         command.extend(["--risk-free-rate", str(args.risk_free_rate)])
     if hasattr(args, "max_weight") and args.max_weight:
@@ -565,8 +575,23 @@ def main() -> int:
     optimize_parser.add_argument(
         "--period",
         "-p",
-        choices=["financial_crisis", "post_crisis", "recent"],
-        help="Period to analyze",
+        choices=["financial_crisis", "post_crisis", "recent", "custom"],
+        help="Period to analyze (use 'custom' with --start-date and --end-date for custom periods)",
+    )
+    optimize_parser.add_argument(
+        "--start-date",
+        type=str,
+        help="Start date for custom period (YYYY-MM-DD format)",
+    )
+    optimize_parser.add_argument(
+        "--end-date",
+        type=str,
+        help="End date for custom period (YYYY-MM-DD format)",
+    )
+    optimize_parser.add_argument(
+        "--years",
+        type=int,
+        help="Number of years for custom period (starting from start-date)",
     )
     optimize_parser.add_argument(
         "--risk-free-rate", "-r", type=float, help="Risk-free rate (annualized)"

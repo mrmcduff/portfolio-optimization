@@ -596,6 +596,9 @@ def main(
     rebalance: bool = False,
     rebalance_frequency: str = "Q",
     lookback_window: int = 252,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    years: Optional[int] = None,
 ) -> None:
     """
     Main function to run the Fast Algorithm portfolio optimization.
@@ -654,8 +657,55 @@ def main(
         "recent": ("2019-01-01", "2023-12-31"),
     }
 
-    # Filter returns by period if specified
-    if period and period in periods:
+    # Handle custom date range
+    if period == "custom":
+        # Validate custom date parameters
+        if start_date is None:
+            print("ERROR: --start-date is required when using --period custom")
+            return
+
+        # If end_date is not provided but years is, calculate end_date
+        if end_date is None and years is not None:
+            try:
+                from datetime import datetime, timedelta
+
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+                end_dt = start_dt + timedelta(days=365 * years)
+                end_date = end_dt.strftime("%Y-%m-%d")
+                print(
+                    f"Calculated end date based on {years} years from {start_date}: {end_date}"
+                )
+            except ValueError:
+                print("ERROR: Invalid start date format. Please use YYYY-MM-DD format.")
+                return
+        elif end_date is None:
+            print(
+                "ERROR: Either --end-date or --years must be provided with --period custom"
+            )
+            return
+
+        # Create specialized data for custom period (similar to financial_crisis handling)
+        print(
+            f"Preparing specialized data for custom period: {start_date} to {end_date}..."
+        )
+
+        # Load raw price data to properly handle ETFs that don't exist during the period
+        from src.preprocessing.process_etf_data import prepare_custom_period_data
+
+        custom_data = prepare_custom_period_data(start_date, end_date)
+
+        if custom_data is None or len(custom_data) == 0:
+            print(
+                f"ERROR: No data available for custom period ({start_date} to {end_date})"
+            )
+            print("Please choose a different period or check your data source.")
+            return
+
+        # Use the custom period data
+        returns_data = custom_data
+        print(f"Using {len(returns_data.columns)} ETFs for custom period analysis")
+    # Filter returns by predefined period if specified
+    elif period and period in periods:
         start_date, end_date = periods[period]
         returns_data = filter_by_period(returns_data, start_date, end_date)
 
@@ -768,8 +818,23 @@ if __name__ == "__main__":
     parser.add_argument(
         "--period",
         "-p",
-        choices=["financial_crisis", "post_crisis", "recent"],
-        help="Period to analyze",
+        choices=["financial_crisis", "post_crisis", "recent", "custom"],
+        help="Period to analyze (use 'custom' with --start-date and --end-date for custom periods)",
+    )
+    parser.add_argument(
+        "--start-date",
+        type=str,
+        help="Start date for custom period (YYYY-MM-DD format)",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        help="End date for custom period (YYYY-MM-DD format)",
+    )
+    parser.add_argument(
+        "--years",
+        type=int,
+        help="Number of years for custom period (starting from start-date)",
     )
     parser.add_argument(
         "--risk-free-rate",
@@ -826,4 +891,7 @@ if __name__ == "__main__":
         rebalance=args.rebalance_portfolio,
         rebalance_frequency=args.rebalance_frequency,
         lookback_window=args.estimation_window,
+        start_date=args.start_date,
+        end_date=args.end_date,
+        years=args.years,
     )

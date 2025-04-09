@@ -113,7 +113,28 @@ Run the Fast Algorithm to create an optimized portfolio:
 ./run.py optimize --period recent
 ```
 
-The `--period` parameter can be `financial_crisis`, `post_crisis`, or `recent` to focus on specific market environments.
+The `--period` parameter can be:
+- `financial_crisis`: Focus on the 2007-2009 financial crisis period
+- `post_crisis`: Focus on the recovery period after the financial crisis
+- `recent`: Focus on the most recent market data
+- `custom`: Specify your own custom date range
+
+#### Custom Date Ranges
+
+You can analyze any specific time period by using the custom period option:
+
+```bash
+# Analyze a specific 5-year period
+./run.py optimize --period custom --start-date 2015-01-01 --years 5
+
+# Analyze a specific date range
+./run.py optimize --period custom --start-date 2018-01-01 --end-date 2020-12-31
+```
+
+When using custom periods, the system automatically:
+- Filters to the specified date range
+- Excludes ETFs that don't have sufficient data during that period (< 80% coverage)
+- Calculates returns for the valid ETFs
 
 ### Visualizing Results
 
