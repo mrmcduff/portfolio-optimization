@@ -304,6 +304,18 @@ def analyze_drawdowns(
     for column in returns.columns:
         series = returns[column].dropna()
 
+        # Skip if series is empty
+        if len(series) == 0:
+            print(
+                f"Warning: No data available for {column}. Skipping drawdown analysis."
+            )
+            drawdown_stats[column] = {
+                "Max Drawdown": float("nan"),
+                "Max Drawdown Date": None,
+                "Recovery Time (Days)": float("nan"),
+            }
+            continue
+
         # Calculate drawdowns
         cumulative_returns = (1 + series).cumprod()
         running_max = cumulative_returns.cummax()
@@ -314,10 +326,14 @@ def analyze_drawdowns(
 
         # Calculate drawdown statistics
         max_drawdown = drawdown.min()
-        max_drawdown_date = drawdown.idxmin()
+        # Check if drawdown is empty before calling idxmin
+        if len(drawdown) > 0:
+            max_drawdown_date = drawdown.idxmin()
+        else:
+            max_drawdown_date = None
 
         # Find recovery date (if any)
-        if max_drawdown < 0:
+        if max_drawdown_date is not None and max_drawdown < 0:
             recovery_mask = (drawdown.index > max_drawdown_date) & (drawdown == 0)
             recovery_dates = drawdown.index[recovery_mask]
             recovery_date = recovery_dates[0] if len(recovery_dates) > 0 else None
@@ -327,7 +343,9 @@ def analyze_drawdowns(
             else:
                 recovery_time = float("nan")  # Still in drawdown
         else:
-            recovery_time = 0  # No drawdown
+            recovery_time = (
+                float("nan") if max_drawdown_date is None else 0
+            )  # No drawdown or no data
 
         # Store statistics
         drawdown_stats[column] = {
@@ -510,20 +528,25 @@ def main(
     plot_rolling_metrics(returns, window=252, output_dir=output_dir)
 
     # Analyze drawdowns
-    if output_dir:
-        drawdown_file = os.path.join(output_dir, "drawdowns.png")
-        drawdown_stats, _ = analyze_drawdowns(returns, drawdown_file)
-    else:
-        drawdown_stats, _ = analyze_drawdowns(returns)
+    try:
+        if output_dir:
+            drawdown_file = os.path.join(output_dir, "drawdowns.png")
+            drawdown_stats, _ = analyze_drawdowns(returns, drawdown_file)
+        else:
+            drawdown_stats, _ = analyze_drawdowns(returns)
 
-    # Print drawdown statistics
-    print("\nDrawdown Statistics:")
-    # Configure pandas to show all rows and columns
-    pd.set_option("display.max_rows", None)
-    pd.set_option("display.max_columns", None)
-    pd.set_option("display.width", 1000)  # Wider display to prevent line wrapping
+        # Print drawdown statistics
+        print("\nDrawdown Statistics:")
+        # Configure pandas to show all rows and columns
+        pd.set_option("display.max_rows", None)
+        pd.set_option("display.max_columns", None)
+        pd.set_option("display.width", 1000)  # Wider display to prevent line wrapping
+        print(drawdown_stats)
+    except Exception as e:
+        print(f"Warning: Error during drawdown analysis: {e}")
+        drawdown_stats = pd.DataFrame()
 
-    print(drawdown_stats)
+    # Pandas display settings were already configured in the try block
 
     # Create summary report
     if output_dir:

@@ -12,6 +12,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+# Import period configurations
+from src.config.periods import PERIOD_RANGES
+
 
 def load_data(file_path: str) -> Optional[pd.DataFrame]:
     """
@@ -193,14 +196,21 @@ def split_by_period(
     period_returns: Dict[str, pd.DataFrame] = {}
 
     for name, (start, end) in periods.items():
-        mask = (returns.index >= start) & (returns.index <= end)
+        # Convert string dates to datetime objects for proper comparison
+        start_date = pd.to_datetime(start)
+        end_date = pd.to_datetime(end)
+
+        # Filter data using datetime objects
+        mask = (returns.index >= start_date) & (returns.index <= end_date)
         period_returns[name] = returns.loc[mask]
         print(f"Period {name}: {start} to {end}, rows: {len(period_returns[name])}")
 
     return period_returns
 
 
-def prepare_sector_data(returns: pd.DataFrame) -> pd.DataFrame:
+def prepare_sector_data(
+    returns: pd.DataFrame, period: Optional[str] = None
+) -> pd.DataFrame:
     """
     Prepare sector ETF data for portfolio optimization.
 
@@ -208,6 +218,9 @@ def prepare_sector_data(returns: pd.DataFrame) -> pd.DataFrame:
     -----------
     returns : pd.DataFrame
         Returns data for all ETFs
+    period : Optional[str], optional
+        Period name to prepare data for, by default None
+        If specified, will handle ETFs that didn't exist during certain periods
 
     Returns:
     --------
@@ -217,11 +230,77 @@ def prepare_sector_data(returns: pd.DataFrame) -> pd.DataFrame:
     # List of sector ETFs
     sector_etfs: List[str] = [col for col in returns.columns if col.startswith("XL")]
 
-    # Filter returns data
+    # Filter returns data to only include the selected ETFs
     sector_returns = returns[sector_etfs]
 
-    print(f"Extracted {len(sector_etfs)} sector ETFs: {sector_etfs}")
+    # Drop rows with any NaN values
+    sector_returns = sector_returns.dropna()
+
+    print(
+        f"Extracted {len(sector_etfs)} sector ETFs for {period or 'all periods'}: {sector_etfs}"
+    )
+    print(f"Final data shape: {sector_returns.shape}")
     return sector_returns
+
+
+def prepare_financial_crisis_data(raw_data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare data specifically for the financial crisis period.
+    This function processes the raw data directly to avoid losing early data.
+
+    Parameters:
+    -----------
+    raw_data : pd.DataFrame
+        Raw price data with dates as index
+
+    Returns:
+    --------
+    pd.DataFrame
+        Returns data for the financial crisis period
+    """
+    print("\nPreparing specialized financial crisis data...")
+
+    # Make a copy of the data
+    df = raw_data.copy()
+
+    # Filter to financial crisis period
+    start_date, end_date = PERIOD_RANGES["financial_crisis"]
+    start_dt = pd.to_datetime(start_date)
+    end_dt = pd.to_datetime(end_date)
+
+    # Filter by date
+    mask = (df.index >= start_dt) & (df.index <= end_dt)
+    crisis_data = df.loc[mask]
+
+    print(
+        f"Financial crisis period data: {start_date} to {end_date}, rows: {len(crisis_data)}"
+    )
+
+    # Find sector ETFs that have data during this period
+    sector_etfs = [col for col in crisis_data.columns if col.startswith("XL")]
+    valid_etfs = []
+
+    for etf in sector_etfs:
+        # Check if this ETF has enough non-NaN values in the period (at least 80%)
+        valid_count = crisis_data[etf].count()
+        total_count = len(crisis_data)
+        if valid_count / total_count >= 0.8:  # At least 80% of data points are valid
+            valid_etfs.append(etf)
+        else:
+            print(
+                f"Excluding {etf} from financial crisis analysis: only {valid_count}/{total_count} valid data points"
+            )
+
+    # Filter to valid ETFs only
+    crisis_data = crisis_data[valid_etfs]
+
+    # Calculate returns
+    crisis_returns = crisis_data.pct_change().dropna()
+
+    print(f"Using {len(valid_etfs)} sector ETFs for financial crisis: {valid_etfs}")
+    print(f"Final financial crisis returns data shape: {crisis_returns.shape}")
+
+    return crisis_returns
 
 
 def save_processed_data(
@@ -283,13 +362,20 @@ def main(input_file: str, output_dir: str) -> None:
     # Calculate returns
     returns = calculate_returns(prices)
 
-    # Define periods for analysis
-    periods = {
-        "full_period": (returns.index.min(), returns.index.max()),
-        "financial_crisis": ("2007-01-01", "2011-12-31"),
-        "post_crisis": ("2012-01-01", "2018-12-31"),
-        "recent": ("2019-01-01", "2023-12-31"),
-    }
+    # Define full period based on actual data availability
+    min_date = returns.index.min()
+    max_date = returns.index.max()
+
+    # Use standard periods from config but add full_period
+    periods = PERIOD_RANGES.copy()
+    periods["full_period"] = (
+        min_date.strftime("%Y-%m-%d"),
+        max_date.strftime("%Y-%m-%d"),
+    )
+
+    print("Using standard period definitions:")
+    for period_name, (start, end) in periods.items():
+        print(f"  {period_name}: {start} to {end}")
 
     # Split returns by period
     period_returns = split_by_period(returns, periods)
@@ -300,8 +386,12 @@ def main(input_file: str, output_dir: str) -> None:
         for name, period_data in period_returns.items()
     }
 
-    # Prepare sector ETF data
+    # Prepare sector ETF data for all periods
     sector_returns = prepare_sector_data(returns)
+
+    # Prepare specialized data for the financial crisis period directly from raw data
+    # This ensures we don't lose early data due to NaN values in newer ETFs
+    financial_crisis_returns = prepare_financial_crisis_data(prices)
 
     # Calculate correlation and covariance matrices for the recent period
     recent_returns = period_returns["recent"]
@@ -326,6 +416,7 @@ def main(input_file: str, output_dir: str) -> None:
         "monthly_returns": monthly_returns,
         "quarterly_returns": quarterly_returns,
         "sector_returns": sector_returns,
+        "financial_crisis_sector_returns": financial_crisis_returns,
         "recent_returns": recent_returns,
         "correlation_matrix": correlation,
         "covariance_matrix": covariance,

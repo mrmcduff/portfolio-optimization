@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
+# Import period configurations
+
 
 def load_returns(file_path: str) -> Optional[pd.DataFrame]:
     """
@@ -63,10 +65,14 @@ def filter_by_period(
     filtered = returns.copy()
 
     if start_date:
-        filtered = filtered[filtered.index >= start_date]
+        # Convert string date to datetime for proper comparison
+        start_dt = pd.to_datetime(start_date)
+        filtered = filtered[filtered.index >= start_dt]
 
     if end_date:
-        filtered = filtered[filtered.index <= end_date]
+        # Convert string date to datetime for proper comparison
+        end_dt = pd.to_datetime(end_date)
+        filtered = filtered[filtered.index <= end_dt]
 
     print(f"Filtered returns: {start_date} to {end_date}, rows: {len(filtered)}")
     return filtered
@@ -580,13 +586,27 @@ def main(
     os.makedirs(output_dir, exist_ok=True)
 
     # Load returns data
-    returns_data = load_returns(returns_file)
+    # Special handling for financial crisis period
+    if period == "financial_crisis":
+        # Use the specialized financial crisis sector returns that exclude ETFs that didn't exist then
+        crisis_file = returns_file.replace(
+            "sector_returns.csv", "financial_crisis_sector_returns.csv"
+        )
+        if os.path.exists(crisis_file):
+            print(f"Using specialized financial crisis data from {crisis_file}")
+            returns_data = load_returns(crisis_file)
+        else:
+            # Fall back to regular returns file
+            returns_data = load_returns(returns_file)
+    else:
+        returns_data = load_returns(returns_file)
+
     if returns_data is None:
         return
 
     # Define period date ranges
     periods: Dict[str, Tuple[str, str]] = {
-        "financial_crisis": ("2007-01-01", "2011-12-31"),
+        "financial_crisis": ("2008-01-02", "2013-01-02"),
         "post_crisis": ("2012-01-01", "2018-12-31"),
         "recent": ("2019-01-01", "2023-12-31"),
     }
@@ -595,6 +615,14 @@ def main(
     if period and period in periods:
         start_date, end_date = periods[period]
         returns_data = filter_by_period(returns_data, start_date, end_date)
+
+        # Check if we have enough data after filtering
+        if len(returns_data) == 0:
+            print(
+                f"ERROR: No data available for period {period} ({start_date} to {end_date})"
+            )
+            print("Please choose a different period or check your data source.")
+            return
 
     # Prepare optimization inputs
     expected_returns, covariance_matrix = prepare_optimization_inputs(returns_data)
