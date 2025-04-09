@@ -194,12 +194,55 @@ def fast_algorithm_portfolio(
     optimal_weights = pd.Series(result["x"], index=returns.index)
 
     # Apply minimum weight constraint (post-optimization)
-    if min_weight is not None:
-        # Set weights below min_weight to 0
-        tiny_weights = optimal_weights < min_weight
-        optimal_weights[tiny_weights] = 0
+    if min_weight is not None or max_weight is not None:
+        # Iteratively adjust weights to satisfy both min and max constraints
+        # This may take multiple iterations as enforcing one constraint can violate another
+        for _ in range(10):  # Limit iterations to avoid infinite loops
+            changed = False
 
-        # Rescale remaining weights to sum to 1
+            # Apply minimum weight constraint
+            if min_weight is not None:
+                # Set weights below min_weight to 0
+                tiny_weights = (optimal_weights > 0) & (optimal_weights < min_weight)
+                if any(tiny_weights):
+                    optimal_weights[tiny_weights] = 0
+                    changed = True
+
+            # Rescale weights to sum to 1
+            if optimal_weights.sum() > 0:
+                optimal_weights = optimal_weights / optimal_weights.sum()
+
+            # Apply maximum weight constraint after rescaling
+            if max_weight is not None:
+                # Check if any weight exceeds max_weight
+                excess_weights = optimal_weights > max_weight
+                if any(excess_weights):
+                    # Set excess weights to max_weight
+                    excess_amount = sum(optimal_weights[excess_weights] - max_weight)
+                    optimal_weights[excess_weights] = max_weight
+
+                    # Distribute excess amount proportionally to non-maxed weights
+                    non_max_weights = ~excess_weights & (optimal_weights > 0)
+                    if any(non_max_weights):
+                        # Calculate how much we can add to each non-maxed weight
+                        available_weights = optimal_weights[non_max_weights]
+                        available_capacity = sum(max_weight - available_weights)
+
+                        if available_capacity > 0:
+                            # Distribute excess proportionally to available capacity
+                            distribution_ratio = min(
+                                1, excess_amount / available_capacity
+                            )
+                            optimal_weights[non_max_weights] += distribution_ratio * (
+                                max_weight - available_weights
+                            )
+                            changed = True
+
+            # If no changes were made in this iteration, we're done
+            if not changed:
+                break
+
+        # Final rescale to ensure sum to 1
         if optimal_weights.sum() > 0:
             optimal_weights = optimal_weights / optimal_weights.sum()
 
