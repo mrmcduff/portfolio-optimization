@@ -303,6 +303,84 @@ def prepare_financial_crisis_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     return crisis_returns
 
 
+def prepare_custom_period_data(
+    start_date: str, end_date: str, data_file: str = "data/processed/sector_returns.csv"
+) -> pd.DataFrame:
+    """
+    Prepare sector ETF data for a custom date range.
+    This function handles ETFs that don't exist during the specified period.
+
+    Parameters:
+    -----------
+    start_date : str
+        Start date in YYYY-MM-DD format
+    end_date : str
+        End date in YYYY-MM-DD format
+    data_file : str, optional
+        Path to the processed returns data file, by default "data/processed/sector_returns.csv"
+
+    Returns:
+    --------
+    pd.DataFrame
+        Returns data for the custom period
+    """
+    print("\nPreparing specialized data for custom period...")
+
+    # Load returns data
+    df = pd.read_csv(data_file, index_col=0, parse_dates=True)
+
+    # Convert string dates to timestamps
+    start_dt = pd.to_datetime(start_date)
+    end_dt = pd.to_datetime(end_date)
+
+    # Filter by date
+    mask = (df.index >= start_dt) & (df.index <= end_dt)
+    custom_data = df.loc[mask]
+
+    if len(custom_data) == 0:
+        print(f"ERROR: No data available for period {start_date} to {end_date}")
+        return None
+
+    print(f"Custom period data: {start_date} to {end_date}, rows: {len(custom_data)}")
+
+    # Find sector ETFs that have data during this period
+    sector_etfs = [col for col in custom_data.columns if col.startswith("XL")]
+    valid_etfs = []
+
+    for etf in sector_etfs:
+        # Check if this ETF has enough non-NaN values in the period (at least 80%)
+        valid_count = custom_data[etf].count()
+        total_count = len(custom_data)
+        if valid_count / total_count >= 0.8:  # At least 80% of data points are valid
+            valid_etfs.append(etf)
+        else:
+            print(
+                f"Excluding {etf} from custom period analysis: only {valid_count}/{total_count} valid data points ({valid_count / total_count:.1%})"
+            )
+
+    if not valid_etfs:
+        print("ERROR: No ETFs have sufficient data for the specified period")
+        return None
+
+    # Filter to valid ETFs only
+    custom_data = custom_data[valid_etfs]
+
+    # We're already working with returns data, no need to calculate returns
+    custom_returns = custom_data
+
+    print(f"Using {len(valid_etfs)} sector ETFs for custom period: {valid_etfs}")
+    print(f"Final custom period returns data shape: {custom_returns.shape}")
+
+    # Save the custom period data for future reference
+    output_dir = os.path.dirname(data_file)
+    os.makedirs(output_dir, exist_ok=True)
+    custom_file = os.path.join(output_dir, "custom_period_returns.csv")
+    custom_returns.to_csv(custom_file)
+    print(f"Saved custom period returns to {custom_file}")
+
+    return custom_returns
+
+
 def save_processed_data(
     data_dict: Dict[str, pd.DataFrame], output_dir: str
 ) -> List[str]:
