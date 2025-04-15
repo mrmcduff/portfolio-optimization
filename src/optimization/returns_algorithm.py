@@ -82,7 +82,7 @@ def select_top_performers(
     rolling_returns : pd.Series
         Rolling returns for each asset
     max_assets : Optional[int], optional
-        Maximum number of assets to select, by default None (select all)
+        Maximum number of assets to select, by default 5
 
     Returns:
     --------
@@ -101,11 +101,8 @@ def select_top_performers(
         )
         return list(selected)
 
-    # Apply max_assets constraint if specified
-    if max_assets is not None:
-        selected = sorted_returns.head(max_assets).index
-    else:
-        selected = sorted_returns.index
+    # Always select top 5 assets
+    selected = sorted_returns.head(5).index
 
     return list(selected)
 
@@ -129,6 +126,10 @@ def calculate_weights(selected_assets: List[str], max_weight: float = 0.2) -> pd
     n_assets = len(selected_assets)
     if n_assets == 0:
         raise ValueError("No assets selected")
+
+    # If we have 5 or fewer assets, each gets max_weight
+    if n_assets <= 5:
+        return pd.Series(max_weight, index=selected_assets)
 
     # Calculate equal weights
     weights = pd.Series(1.0 / n_assets, index=selected_assets)
@@ -206,6 +207,9 @@ def create_returns_based_portfolio(
         "rebalance_dates": [],
         "selected_assets": [],
         "weights": [],
+        "selected_returns": [],  # Returns of selected assets
+        "near_miss_assets": [],  # Next 3 highest returns not selected
+        "near_miss_returns": [],  # Returns of near-miss assets
     }
 
     # Initialize holdings
@@ -225,6 +229,22 @@ def create_returns_based_portfolio(
             selected_assets = select_top_performers(latest_returns)
             current_weights = calculate_weights(selected_assets, max_weight)
 
+            # Get returns for selected assets
+            selected_returns = latest_returns[selected_assets].to_dict()
+
+            # Get next 3 highest returns not selected
+            all_assets = latest_returns.sort_values(ascending=False)
+            near_miss_assets = []
+            near_miss_returns = {}
+            count = 0
+            for asset, ret in all_assets.items():
+                if asset not in selected_assets:
+                    near_miss_assets.append(asset)
+                    near_miss_returns[asset] = ret
+                    count += 1
+                    if count >= 3:
+                        break
+
             # Initialize holdings
             total_value = portfolio_values.iloc[i - 1]
             holdings = current_weights * total_value
@@ -233,11 +253,17 @@ def create_returns_based_portfolio(
             logging.info(f"Rebalancing on {date.date()}")
             logging.info(f"Selected assets: {selected_assets}")
             logging.info(f"Portfolio weights: {current_weights.to_dict()}")
+            logging.info(f"Selected returns: {selected_returns}")
+            logging.info(f"Near miss assets: {near_miss_assets}")
+            logging.info(f"Near miss returns: {near_miss_returns}")
 
             # Store portfolio info
             portfolio_info["rebalance_dates"].append(date)
             portfolio_info["selected_assets"].append(selected_assets)
-            portfolio_info["weights"].append(current_weights)
+            portfolio_info["weights"].append(current_weights.to_dict())
+            portfolio_info["selected_returns"].append(selected_returns)
+            portfolio_info["near_miss_assets"].append(near_miss_assets)
+            portfolio_info["near_miss_returns"].append(near_miss_returns)
 
         # Update holdings based on price changes
         if holdings is not None:
