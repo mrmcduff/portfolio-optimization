@@ -95,10 +95,18 @@ def calculate_performance_metrics(
     metrics: Dict[str, Dict[str, float]] = {}
 
     # Daily risk-free rate
-    # daily_rf = (1 + risk_free_rate) ** (1 / periods_per_year) - 1
+    daily_rf = (1 + risk_free_rate) ** (1 / periods_per_year) - 1
+
+    # Identify market benchmark (assuming first column is the market)
+    market_returns = returns.iloc[:, 0]
+    market_excess_returns = market_returns - daily_rf
 
     for column in returns.columns:
+        # Align the series with market returns to ensure same length
         series = returns[column].dropna()
+        aligned_market = market_returns[series.index]
+        aligned_market_excess = market_excess_returns[series.index]
+        excess_returns = series - daily_rf
 
         # Calculate metrics
         total_return = (1 + series).prod() - 1
@@ -108,14 +116,24 @@ def calculate_performance_metrics(
             (ann_return - risk_free_rate) / ann_volatility if ann_volatility > 0 else 0
         )
 
+        # Calculate beta and Jensen's Alpha
+        covariance = np.cov(excess_returns, aligned_market_excess)[0, 1]
+        market_variance = np.var(aligned_market_excess)
+        beta = covariance / market_variance if market_variance > 0 else 1.0
+
+        # Calculate Jensen's Alpha (annualized)
+        expected_return = daily_rf + beta * (aligned_market - daily_rf)
+        alpha = (1 + (series - expected_return).mean()) ** periods_per_year - 1
+
         # Maximum drawdown
         cumulative_returns = (1 + series).cumprod()
         running_max = cumulative_returns.cummax()
         drawdown = (cumulative_returns / running_max) - 1
         max_drawdown = drawdown.min()
 
-        # Value at Risk (95%)
+        # Value at Risk (95%) and Conditional VaR
         var_95 = series.quantile(0.05)
+        cvar_95 = series[series <= var_95].mean()
 
         # Skewness and kurtosis
         skewness = series.skew()
@@ -127,8 +145,11 @@ def calculate_performance_metrics(
             "Annualized Return": ann_return,
             "Annualized Volatility": ann_volatility,
             "Sharpe Ratio": sharpe_ratio,
+            "Jensen's Alpha": alpha,
+            "Beta": beta,
             "Max Drawdown": max_drawdown,
             "Value at Risk (95%)": var_95,
+            "Conditional VaR (95%)": cvar_95,
             "Skewness": skewness,
             "Kurtosis": kurtosis,
         }
@@ -415,6 +436,7 @@ def create_summary_report(
         "Max Drawdown",
         "Value at Risk (95%)",
         "Conditional VaR (95%)",
+        "Jensen's Alpha",
     ]
 
     # Create a new DataFrame for the formatted values
@@ -425,17 +447,16 @@ def create_summary_report(
     # Copy values, formatting percentages where appropriate
     for idx in formatted_metrics.index:
         for col in formatted_metrics.columns:
+            value = formatted_metrics.loc[idx, col]
             if idx in percentage_rows:
-                formatted_metrics_display.loc[
-                    idx, col
-                ] = f"{formatted_metrics.loc[idx, col]:.2%}"
+                formatted_metrics_display.loc[idx, col] = f"{value:.2%}"
+            elif idx == "Beta":
+                formatted_metrics_display.loc[idx, col] = f"{value:.2f}"
             else:
-                formatted_metrics_display.loc[idx, col] = formatted_metrics.loc[
-                    idx, col
-                ]
+                formatted_metrics_display.loc[idx, col] = f"{value:.3f}"
 
     # Convert to Markdown
-    metrics_table = formatted_metrics.transpose().to_markdown()
+    metrics_table = formatted_metrics_display.to_markdown()
     report += metrics_table + "\n\n"
 
     # Add correlation information
@@ -449,22 +470,22 @@ def create_summary_report(
 
     for column in returns.columns:
         report += f"### {column}\n\n"
-
-        # Default descriptions based on common benchmark names
-        if column.lower() == "spy" or column.lower() == "s&p 500":
-            report += "The S&P 500 Index is a market-capitalization-weighted index of the 500 largest publicly traded companies in the U.S. It is widely regarded as the best gauge of large-cap U.S. equities.\n\n"
-        elif "60/40" in column.lower() or "balanced" in column.lower():
-            report += "A traditional balanced portfolio consisting of 60% stocks (S&P 500) and 40% bonds. This allocation is considered a benchmark for moderate investors seeking growth with some downside protection.\n\n"
-        elif "fa" in column.lower() or "fast algorithm" in column.lower():
-            report += "A portfolio optimized using the Fast Algorithm implementation of the Markowitz Mean-Variance Optimization framework. This portfolio seeks to maximize the Sharpe ratio by finding the optimal allocation across assets.\n\n"
+        if column == returns.columns[0]:
+            report += (
+                "Market benchmark used for calculating Beta and Jensen's Alpha.\n\n"
+            )
         else:
-            report += "Custom benchmark or strategy.\n\n"
+            report += "Portfolio or benchmark returns series.\n\n"
 
     # Add notes
     report += "## Notes\n\n"
     report += "- Sharpe Ratio assumes a risk-free rate of 0%.\n"
     report += "- Max Drawdown represents the largest peak-to-trough decline during the period.\n"
     report += "- Value at Risk (95%) indicates the worst expected loss over a day with 95% confidence.\n"
+    report += "- Conditional VaR (95%) represents the average loss on days when losses exceed the 95% VaR.\n"
+    report += "- Jensen's Alpha measures the portfolio's excess return relative to what would be predicted by CAPM.\n"
+    report += "- Beta measures the portfolio's systematic risk relative to the market benchmark.\n"
+    report += f"- Market benchmark used: {returns.columns[0]}\n"
 
     # Save if output_file is provided
     if output_file:

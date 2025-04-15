@@ -4,11 +4,19 @@
 
 ## Performance Metrics
 
-|                          |   Total Return |   Annualized Return |   Annualized Volatility |   Sharpe Ratio |   Max Drawdown |   Value at Risk (95%) |   Skewness |   Kurtosis |
-|:-------------------------|---------------:|--------------------:|------------------------:|---------------:|---------------:|----------------------:|-----------:|-----------:|
-| S&P 500                  |       1.38652  |            0.164062 |                0.196151 |       0.734443 |      -0.337173 |            -0.0184559 |  -0.530175 |    11.9544 |
-| 60/40 Portfolio          |       0.782242 |            0.100394 |                0.122469 |       0.656448 |      -0.211871 |            -0.0112389 |  -0.665305 |    14.6811 |
-| Fast Algorithm Portfolio |       1.14077  |            0.187318 |                0.195723 |       0.854871 |      -0.330251 |            -0.0164847 |  -0.525451 |    15.1121 |
+|                       | S&P 500   | 60/40 Portfolio   | Fast Algorithm Portfolio   |
+|:----------------------|:----------|:------------------|:---------------------------|
+| Total Return          | 138.65%   | 78.22%            | 114.08%                    |
+| Annualized Return     | 16.41%    | 10.04%            | 18.73%                     |
+| Annualized Volatility | 19.62%    | 12.25%            | 19.57%                     |
+| Sharpe Ratio          | 0.734     | 0.656             | 0.855                      |
+| Jensen's Alpha        | -0.01%    | -0.47%            | 1.76%                      |
+| Beta                  | 1.00      | 0.61              | 0.91                       |
+| Max Drawdown          | -33.72%   | -21.19%           | -33.03%                    |
+| Value at Risk (95%)   | -1.85%    | -1.12%            | -1.65%                     |
+| Conditional VaR (95%) | -2.99%    | -1.84%            | -2.99%                     |
+| Skewness              | -0.530    | -0.665            | -0.525                     |
+| Kurtosis              | 11.954    | 14.681            | 15.112                     |
 
 ## Return Correlations
 
@@ -22,18 +30,22 @@
 
 ### S&P 500
 
-The S&P 500 Index is a market-capitalization-weighted index of the 500 largest publicly traded companies in the U.S. It is widely regarded as the best gauge of large-cap U.S. equities.
+Market benchmark used for calculating Beta and Jensen's Alpha.
 
 ### 60/40 Portfolio
 
-A traditional balanced portfolio consisting of 60% stocks (S&P 500) and 40% bonds. This allocation is considered a benchmark for moderate investors seeking growth with some downside protection.
+Portfolio or benchmark returns series.
 
 ### Fast Algorithm Portfolio
 
-A portfolio optimized using the Fast Algorithm implementation of the Markowitz Mean-Variance Optimization framework. This portfolio seeks to maximize the Sharpe ratio by finding the optimal allocation across assets.
+Portfolio or benchmark returns series.
 
 ## Notes
 
 - Sharpe Ratio assumes a risk-free rate of 0%.
 - Max Drawdown represents the largest peak-to-trough decline during the period.
 - Value at Risk (95%) indicates the worst expected loss over a day with 95% confidence.
+- Conditional VaR (95%) represents the average loss on days when losses exceed the 95% VaR.
+- Jensen's Alpha measures the portfolio's excess return relative to what would be predicted by CAPM.
+- Beta measures the portfolio's systematic risk relative to the market benchmark.
+- Market benchmark used: S&P 500
