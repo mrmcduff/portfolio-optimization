@@ -4,27 +4,28 @@
 
 ## Performance Metrics
 
-|                       | S&P 500   | 60/40 Portfolio   | Fast Algorithm Portfolio   |
-|:----------------------|:----------|:------------------|:---------------------------|
-| Total Return          | 138.65%   | 78.22%            | 114.08%                    |
-| Annualized Return     | 16.41%    | 10.04%            | 18.73%                     |
-| Annualized Volatility | 19.62%    | 12.25%            | 19.57%                     |
-| Sharpe Ratio          | 0.734     | 0.656             | 0.855                      |
-| Jensen's Alpha        | -0.01%    | -0.47%            | 1.76%                      |
-| Beta                  | 1.00      | 0.61              | 0.91                       |
-| Max Drawdown          | -33.72%   | -21.19%           | -33.03%                    |
-| Value at Risk (95%)   | -1.85%    | -1.12%            | -1.65%                     |
-| Conditional VaR (95%) | -2.99%    | -1.84%            | -2.99%                     |
-| Skewness              | -0.530    | -0.665            | -0.525                     |
-| Kurtosis              | 11.954    | 14.681            | 15.112                     |
+|                       | S&P 500   | 60/40 Portfolio   | Fast Algorithm Portfolio   | Returns Algorithm Portfolio   |
+|:----------------------|:----------|:------------------|:---------------------------|:------------------------------|
+| Total Return          | 138.65%   | 78.22%            | 114.08%                    | 129.90%                       |
+| Annualized Return     | 16.41%    | 10.04%            | 18.73%                     | 15.48%                        |
+| Annualized Volatility | 19.62%    | 12.25%            | 19.57%                     | 18.36%                        |
+| Sharpe Ratio          | 0.734     | 0.656             | 0.855                      | 0.734                         |
+| Jensen's Alpha        | -0.01%    | -0.47%            | 1.76%                      | 0.83%                         |
+| Beta                  | 1.00      | 0.61              | 0.91                       | 0.88                          |
+| Max Drawdown          | -33.72%   | -21.19%           | -33.03%                    | -35.77%                       |
+| Value at Risk (95%)   | -1.85%    | -1.12%            | -1.65%                     | -1.58%                        |
+| Conditional VaR (95%) | -2.99%    | -1.84%            | -2.99%                     | -2.77%                        |
+| Skewness              | -0.530    | -0.665            | -0.525                     | -0.687                        |
+| Kurtosis              | 11.954    | 14.681            | 15.112                     | 18.868                        |
 
 ## Return Correlations
 
-|                          |   S&P 500 |   60/40 Portfolio |   Fast Algorithm Portfolio |
-|:-------------------------|----------:|------------------:|---------------------------:|
-| S&P 500                  |  1        |          0.977159 |                   0.977352 |
-| 60/40 Portfolio          |  0.977159 |          1        |                   0.94943  |
-| Fast Algorithm Portfolio |  0.977352 |          0.94943  |                   1        |
+|                             |   S&P 500 |   60/40 Portfolio |   Fast Algorithm Portfolio |   Returns Algorithm Portfolio |
+|:----------------------------|----------:|------------------:|---------------------------:|------------------------------:|
+| S&P 500                     |  1        |          0.977159 |                   0.977352 |                      0.937827 |
+| 60/40 Portfolio             |  0.977159 |          1        |                   0.94943  |                      0.918879 |
+| Fast Algorithm Portfolio    |  0.977352 |          0.94943  |                   1        |                      0.978308 |
+| Returns Algorithm Portfolio |  0.937827 |          0.918879 |                   0.978308 |                      1        |
 
 ## Benchmark Descriptions
 
@@ -37,6 +38,10 @@ Market benchmark used for calculating Beta and Jensen's Alpha.
 Portfolio or benchmark returns series.
 
 ### Fast Algorithm Portfolio
+
+Portfolio or benchmark returns series.
+
+### Returns Algorithm Portfolio
 
 Portfolio or benchmark returns series.
 

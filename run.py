@@ -12,6 +12,8 @@ import subprocess
 import sys
 from typing import List
 
+from src.analysis import benchmark_analysis
+
 # Default file paths
 DEFAULT_PATHS = {
     # Input data
@@ -26,6 +28,7 @@ DEFAULT_PATHS = {
     "models_dir": "results/models",
     "fa_weights": "results/models/fa_optimal_weights.csv",
     "fa_returns": "results/models/fa_portfolio_returns.csv",
+    "ra_returns": "results/models/returns_algorithm_portfolio.csv",  # Returns algorithm portfolio returns
     # Visualizations
     "figures_dir": "results/figures",
     # Analysis
@@ -300,7 +303,7 @@ def visualize(args: argparse.Namespace) -> int:
 
 def analyze(args: argparse.Namespace) -> int:
     """
-    Run benchmark analysis.
+    Run benchmark analysis on portfolio returns.
 
     Parameters:
     -----------
@@ -312,48 +315,50 @@ def analyze(args: argparse.Namespace) -> int:
     int
         Exit code from the command
     """
-    # Ensure output directory exists
-    output_dir = getattr(args, "output", None) or DEFAULT_PATHS["analysis_dir"]
-    ensure_directory_exists(output_dir)
+    # Get default files if none specified
+    if not args.files:
+        default_files = [
+            DEFAULT_PATHS["spy_returns"],
+            DEFAULT_PATHS["balanced_returns"],
+            DEFAULT_PATHS["fa_returns"],
+        ]
+        if os.path.exists(DEFAULT_PATHS["ra_returns"]):
+            default_files.append(DEFAULT_PATHS["ra_returns"])
+        args.files = default_files
 
-    # Determine files to analyze
-    files = getattr(args, "files", None) or []
-    if not files:
-        # Use defaults if available
-        default_files = []
-        if os.path.exists(DEFAULT_PATHS["spy_returns"]):
-            default_files.append(DEFAULT_PATHS["spy_returns"])
-        if os.path.exists(DEFAULT_PATHS["balanced_returns"]):
-            default_files.append(DEFAULT_PATHS["balanced_returns"])
-        if os.path.exists(DEFAULT_PATHS["fa_returns"]):
-            default_files.append(DEFAULT_PATHS["fa_returns"])
-
-        if default_files:
-            files = default_files
+    # Get default names if none specified
+    if not args.names:
+        if len(args.files) == 4:
+            args.names = [
+                "S&P 500",
+                "60/40 Portfolio",
+                "Fast Algorithm Portfolio",
+                "Returns Algorithm Portfolio",
+            ]
+        elif len(args.files) == 3:
+            args.names = [
+                "S&P 500",
+                "60/40 Portfolio",
+                "Fast Algorithm Portfolio",
+            ]
         else:
-            print("Error: No files specified and no default files found")
-            return 1
+            args.names = [f"Portfolio {i + 1}" for i in range(len(args.files))]
 
-    # Build and run the command
-    command = ["python", "-m", "src.analysis.benchmark_analysis", "--files"]
-    command.extend(files)
-    command.extend(["--output", output_dir])
+    # Create output directory if it doesn't exist
+    os.makedirs(args.output, exist_ok=True)
 
-    # Add names if provided
-    if hasattr(args, "names") and args.names:
-        command.append("--names")
-        command.extend(args.names)
-    elif len(files) == 3:
-        # Use default names if 3 files (assumed to be SPY, 60/40, and FA)
-        command.extend(
-            ["--names", "S&P 500", "60/40 Portfolio", "Fast Algorithm Portfolio"]
+    # Run benchmark analysis
+    try:
+        benchmark_analysis.main(
+            return_files=args.files,
+            names=args.names,
+            risk_free_rate=args.risk_free_rate,
+            output_dir=args.output,
         )
-
-    # Add risk-free rate if provided
-    if hasattr(args, "risk_free_rate") and args.risk_free_rate:
-        command.extend(["--risk-free-rate", str(args.risk_free_rate)])
-
-    return run_command(command)
+        return 0
+    except Exception as e:
+        print(f"Error running benchmark analysis: {e}")
+        return 1
 
 
 def compare_rebalancing(args: argparse.Namespace) -> int:
@@ -405,6 +410,49 @@ def compare_rebalancing(args: argparse.Namespace) -> int:
     return run_command(command)
 
 
+def run_returns_algorithm(args: argparse.Namespace) -> int:
+    """
+    Run the Returns Algorithm portfolio optimization.
+
+    Parameters:
+    -----------
+    args : argparse.Namespace
+        Command line arguments
+
+    Returns:
+    --------
+    int
+        Exit code from the command
+    """
+    # Override defaults with any provided args
+    data_file = getattr(args, "data", None) or DEFAULT_PATHS["sector_returns"]
+    output_dir = getattr(args, "output", None) or DEFAULT_PATHS["models_dir"]
+
+    # Ensure output directory exists
+    ensure_directory_exists(output_dir)
+
+    # Build and run the command
+    command = [
+        "python",
+        "-m",
+        "src.optimization.returns_algorithm",
+        "--returns",
+        data_file,
+        "--output",
+        output_dir,
+    ]
+
+    # Add optional parameters if provided
+    if hasattr(args, "rebalance_frequency") and args.rebalance_frequency:
+        command.extend(["--rebalance", args.rebalance_frequency])
+    if hasattr(args, "lookback_window") and args.lookback_window:
+        command.extend(["--lookback", str(args.lookback_window)])
+    if hasattr(args, "max_weight") and args.max_weight:
+        command.extend(["--max-weight", str(args.max_weight)])
+
+    return run_command(command)
+
+
 def run_all(args: argparse.Namespace) -> int:
     """
     Run all steps of the portfolio optimization pipeline.
@@ -448,6 +496,14 @@ def run_all(args: argparse.Namespace) -> int:
         estimation_window=getattr(args, "estimation_window", 252),
     )
 
+    returns_args = argparse.Namespace(
+        data=DEFAULT_PATHS["sector_returns"],
+        output=DEFAULT_PATHS["models_dir"],
+        rebalance_frequency="Q",
+        lookback_window=63,
+        max_weight=0.2,
+    )
+
     visualize_args = argparse.Namespace(
         weights=DEFAULT_PATHS["fa_weights"],
         returns=DEFAULT_PATHS["sector_returns"],
@@ -458,8 +514,18 @@ def run_all(args: argparse.Namespace) -> int:
     )
 
     analyze_args = argparse.Namespace(
-        files=None,
-        names=None,
+        files=[
+            DEFAULT_PATHS["spy_returns"],
+            DEFAULT_PATHS["balanced_returns"],
+            DEFAULT_PATHS["fa_returns"],
+            DEFAULT_PATHS["ra_returns"],
+        ],
+        names=[
+            "S&P 500",
+            "60/40 Portfolio",
+            "Fast Algorithm Portfolio",
+            "Returns Algorithm Portfolio",
+        ],
         risk_free_rate=getattr(args, "risk_free_rate", 0.02),
         output=DEFAULT_PATHS["analysis_dir"],
     )
@@ -468,7 +534,8 @@ def run_all(args: argparse.Namespace) -> int:
     steps = [
         ("Preprocessing", preprocess, preprocess_args),
         ("Benchmark Generation", generate_benchmarks, benchmark_args),
-        ("Portfolio Optimization", optimize, optimize_args),
+        ("Fast Algorithm Optimization", optimize, optimize_args),
+        ("Returns Algorithm Optimization", run_returns_algorithm, returns_args),
         ("Visualization", visualize, visualize_args),
         ("Benchmark Analysis", analyze, analyze_args),
     ]
@@ -692,6 +759,39 @@ def main() -> int:
         "--threshold", "-t", type=float, default=0.05, help="Rebalancing threshold"
     )
 
+    # Returns Algorithm command
+    returns_parser = subparsers.add_parser(
+        "returns", help="Run Returns Algorithm portfolio optimization"
+    )
+    returns_parser.add_argument(
+        "--data",
+        "-d",
+        help=f"Returns data file (default: {DEFAULT_PATHS['sector_returns']})",
+    )
+    returns_parser.add_argument(
+        "--output",
+        "-o",
+        help=f"Output directory (default: {DEFAULT_PATHS['models_dir']})",
+    )
+    returns_parser.add_argument(
+        "--rebalance-frequency",
+        choices=["D", "W", "M", "Q", "A"],
+        default="Q",
+        help="Rebalancing frequency (default: Q for quarterly)",
+    )
+    returns_parser.add_argument(
+        "--lookback-window",
+        type=int,
+        default=63,
+        help="Lookback window in days for returns calculation (default: 63 days)",
+    )
+    returns_parser.add_argument(
+        "--max-weight",
+        type=float,
+        default=0.2,
+        help="Maximum weight for any asset (default: 0.2 or 20%)",
+    )
+
     # Run all command
     all_parser = subparsers.add_parser("all", help="Run all steps in sequence")
     # We'll use the same arguments for each step when running all
@@ -744,6 +844,7 @@ def main() -> int:
         "preprocess": preprocess,
         "benchmarks": generate_benchmarks,
         "optimize": optimize,
+        "returns": run_returns_algorithm,
         "visualize": visualize,
         "analyze": analyze,
         "rebalancing": compare_rebalancing,
