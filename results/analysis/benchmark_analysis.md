@@ -4,28 +4,28 @@
 
 ## Performance Metrics
 
-|                       | S&P 500   | 60/40 Portfolio   | Fast Algorithm Portfolio   | Returns Algorithm Portfolio   |
-|:----------------------|:----------|:------------------|:---------------------------|:------------------------------|
-| Total Return          | 138.65%   | 78.22%            | 114.08%                    | 149.46%                       |
-| Annualized Return     | 16.41%    | 10.04%            | 18.73%                     | 17.01%                        |
-| Annualized Volatility | 19.62%    | 12.25%            | 19.57%                     | 18.77%                        |
-| Sharpe Ratio          | 0.734     | 0.656             | 0.855                      | 0.800                         |
-| Jensen's Alpha        | -0.01%    | -0.47%            | 1.76%                      | 2.35%                         |
-| Beta                  | 1.00      | 0.61              | 0.91                       | 0.86                          |
-| Max Drawdown          | -33.72%   | -21.19%           | -33.03%                    | -34.53%                       |
-| Value at Risk (95%)   | -1.85%    | -1.12%            | -1.65%                     | -1.73%                        |
-| Conditional VaR (95%) | -2.99%    | -1.84%            | -2.99%                     | -2.78%                        |
-| Skewness              | -0.530    | -0.665            | -0.525                     | -0.518                        |
-| Kurtosis              | 11.954    | 14.681            | 15.112                     | 17.183                        |
+|                       | S&P 500   | 60/40 Portfolio   | Returns Algorithm Portfolio   | Weighted Top Five Portfolio   |
+|:----------------------|:----------|:------------------|:------------------------------|:------------------------------|
+| Total Return          | 138.65%   | 78.22%            | 149.46%                       | 146.00%                       |
+| Annualized Return     | 16.41%    | 10.04%            | 17.01%                        | 17.01%                        |
+| Annualized Volatility | 19.62%    | 12.25%            | 18.77%                        | 19.88%                        |
+| Sharpe Ratio          | 0.734     | 0.656             | 0.800                         | 0.755                         |
+| Jensen's Alpha        | -0.01%    | -0.47%            | 2.35%                         | 2.34%                         |
+| Beta                  | 1.00      | 0.61              | 0.86                          | 0.87                          |
+| Max Drawdown          | -33.72%   | -21.19%           | -34.53%                       | -32.51%                       |
+| Value at Risk (95%)   | -1.85%    | -1.12%            | -1.73%                        | -1.83%                        |
+| Conditional VaR (95%) | -2.99%    | -1.84%            | -2.78%                        | -2.92%                        |
+| Skewness              | -0.530    | -0.665            | -0.518                        | -0.326                        |
+| Kurtosis              | 11.954    | 14.681            | 17.183                        | 12.371                        |
 
 ## Return Correlations
 
-|                             |   S&P 500 |   60/40 Portfolio |   Fast Algorithm Portfolio |   Returns Algorithm Portfolio |
-|:----------------------------|----------:|------------------:|---------------------------:|------------------------------:|
-| S&P 500                     |  1        |          0.977159 |                   0.977352 |                      0.903633 |
-| 60/40 Portfolio             |  0.977159 |          1        |                   0.94943  |                      0.88418  |
-| Fast Algorithm Portfolio    |  0.977352 |          0.94943  |                   1        |                      0.939152 |
-| Returns Algorithm Portfolio |  0.903633 |          0.88418  |                   0.939152 |                      1        |
+|                             |   S&P 500 |   60/40 Portfolio |   Returns Algorithm Portfolio |   Weighted Top Five Portfolio |
+|:----------------------------|----------:|------------------:|------------------------------:|------------------------------:|
+| S&P 500                     |  1        |          0.977159 |                      0.903633 |                      0.853499 |
+| 60/40 Portfolio             |  0.977159 |          1        |                      0.88418  |                      0.834318 |
+| Returns Algorithm Portfolio |  0.903633 |          0.88418  |                      1        |                      0.97565  |
+| Weighted Top Five Portfolio |  0.853499 |          0.834318 |                      0.97565  |                      1        |
 
 ## Benchmark Descriptions
 
@@ -37,11 +37,11 @@ Market benchmark used for calculating Beta and Jensen's Alpha.
 
 Portfolio or benchmark returns series.
 
-### Fast Algorithm Portfolio
+### Returns Algorithm Portfolio
 
 Portfolio or benchmark returns series.
 
-### Returns Algorithm Portfolio
+### Weighted Top Five Portfolio
 
 Portfolio or benchmark returns series.
 

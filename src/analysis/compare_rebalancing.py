@@ -6,14 +6,28 @@ This script generates and analyzes different rebalancing strategies for a 60/40 
 
 import argparse
 import os
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from src.analysis.benchmark_analysis import calculate_performance_metrics
+
 # Set better plot styles
 plt.style.use("ggplot")
+
+# Default file paths
+DEFAULT_PATHS = {
+    "sector_returns": "data/processed/sector_returns.csv",
+    "spy_returns": "data/processed/spy_returns.csv",
+    "balanced_returns": "data/processed/balanced_returns.csv",
+    "ca_returns": "results/models/ca_portfolio_returns.csv",
+    "ra_returns": "results/models/returns_algorithm_portfolio.csv",
+    "wtf_returns": "results/models/weighted_top_five_portfolio.csv",
+    "output_dir": "results/analysis",
+}
 
 
 def load_returns_data(file_path: str) -> Optional[pd.DataFrame]:
@@ -322,111 +336,107 @@ def analyze_portfolios(
     return metrics_df
 
 
-def main(
-    stock_symbol: str,
-    bond_symbol: str,
-    returns_file: str,
-    output_dir: str,
-    stock_weight: float = 0.6,
+def compare_portfolios(
+    return_files: List[str],
+    names: List[str],
     risk_free_rate: float = 0.02,
-    threshold: float = 0.05,
+    output_dir: Optional[str] = None,
 ) -> None:
-    """Generate and compare different rebalancing strategies."""
-    # Configure pandas to show all rows and columns
-    pd.set_option("display.max_rows", None)
-    pd.set_option("display.max_columns", None)
-    pd.set_option("display.width", 1000)  # Wider display to prevent line wrapping
+    """
+    Compare performance of different portfolios.
 
-    print(
-        f"Comparing rebalancing strategies for {stock_weight:.0%}/{(1 - stock_weight):.0%} {stock_symbol}/{bond_symbol} portfolio"
-    )
+    Parameters:
+    -----------
+    return_files : List[str]
+        List of paths to return files
+    names : List[str]
+        List of portfolio names
+    risk_free_rate : float, optional
+        Annual risk-free rate (default: 0.02)
+    output_dir : str, optional
+        Directory to save results (default: None)
+    """
+    # Load returns
+    returns = {}
+    for file, name in zip(return_files, names):
+        try:
+            returns[name] = pd.read_csv(file, index_col=0, parse_dates=True)
+        except Exception as e:
+            print(f"Error loading {file}: {e}")
+            continue
 
-    # Load returns data
-    returns_data = load_returns_data(returns_file)
-    if returns_data is None:
-        return
+    # Calculate performance metrics
+    metrics = {}
+    for name, df in returns.items():
+        metrics[name] = calculate_performance_metrics(df, risk_free_rate=risk_free_rate)
 
-    # Ensure we have the required stocks
-    if (
-        stock_symbol not in returns_data.columns
-        or bond_symbol not in returns_data.columns
-    ):
-        print(
-            f"Error: Required symbols ({stock_symbol} and/or {bond_symbol}) not found in returns data"
-        )
-        return
-
-    # Get returns series
-    stock_returns = returns_data[stock_symbol]
-    bond_returns = returns_data[bond_symbol]
-
-    # Create different portfolios
-    portfolios = {}
-
-    # Add S&P 500 for reference
-    portfolios["S&P 500"] = stock_returns
-
-    # No rebalancing
-    portfolios["60/40 No Rebalancing"] = create_no_rebalance_portfolio(
-        stock_returns, bond_returns, stock_weight
-    )
-
-    # Monthly rebalancing
-    portfolios["60/40 Monthly Rebalancing"] = create_periodic_rebalance_portfolio(
-        stock_returns, bond_returns, stock_weight, "M"
-    )
-
-    # Quarterly rebalancing
-    portfolios["60/40 Quarterly Rebalancing"] = create_periodic_rebalance_portfolio(
-        stock_returns, bond_returns, stock_weight, "Q"
-    )
-
-    # Threshold rebalancing
-    portfolios["60/40 Threshold Rebalancing"] = create_threshold_rebalance_portfolio(
-        stock_returns, bond_returns, stock_weight, threshold
-    )
-
-    # Analyze portfolios
-    metrics = analyze_portfolios(portfolios, output_dir, risk_free_rate)
-
-    # Display results
-    print("\nPerformance Metrics:")
-    print(metrics)
-
+    # Create output directory if specified
     if output_dir:
-        print(f"\nResults saved to {output_dir}")
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # Print results
+    print("\nPortfolio Performance Comparison:")
+    print("=" * 80)
+    for name, m in metrics.items():
+        print(f"\n{name}:")
+        print("-" * 40)
+        for metric, value in m.items():
+            print(f"{metric}: {value:.4f}")
+
+    # Save results to CSV if output directory specified
+    if output_dir:
+        metrics_df = pd.DataFrame(metrics)
+        metrics_df.to_csv(Path(output_dir) / "portfolio_comparison.csv")
+        print(f"\nResults saved to {output_dir}/portfolio_comparison.csv")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Compare different portfolio rebalancing strategies"
+def main():
+    parser = argparse.ArgumentParser(description="Compare portfolio performance")
+    parser.add_argument(
+        "--files",
+        nargs="+",
+        default=[
+            DEFAULT_PATHS["spy_returns"],
+            DEFAULT_PATHS["balanced_returns"],
+            DEFAULT_PATHS["ca_returns"],
+            DEFAULT_PATHS["ra_returns"],
+            DEFAULT_PATHS["wtf_returns"],
+        ],
+        help="List of return files to compare",
     )
     parser.add_argument(
-        "--returns", "-r", required=True, help="Path to the returns CSV file"
+        "--names",
+        nargs="+",
+        default=[
+            "S&P 500",
+            "60/40 Portfolio",
+            "Custom Algorithm Portfolio",
+            "Returns Algorithm Portfolio",
+            "Weighted Top Five Portfolio",
+        ],
+        help="List of portfolio names",
     )
     parser.add_argument(
-        "--output", "-o", required=True, help="Directory to save results"
-    )
-    parser.add_argument("--stock", "-s", default="SPY", help="Stock ETF symbol")
-    parser.add_argument("--bond", "-b", default="BND", help="Bond ETF symbol")
-    parser.add_argument(
-        "--weight", "-w", type=float, default=0.6, help="Target stock weight"
+        "--risk-free-rate",
+        type=float,
+        default=0.02,
+        help="Annual risk-free rate (default: 0.02)",
     )
     parser.add_argument(
-        "--risk-free-rate", type=float, default=0.02, help="Risk-free rate (annualized)"
-    )
-    parser.add_argument(
-        "--threshold", "-t", type=float, default=0.05, help="Rebalancing threshold"
+        "--output-dir",
+        default=DEFAULT_PATHS["output_dir"],
+        help="Directory to save results",
     )
 
     args = parser.parse_args()
 
-    main(
-        args.stock,
-        args.bond,
-        args.returns,
-        args.output,
-        args.weight,
-        args.risk_free_rate,
-        args.threshold,
+    compare_portfolios(
+        return_files=args.files,
+        names=args.names,
+        risk_free_rate=args.risk_free_rate,
+        output_dir=args.output_dir,
     )
+
+
+if __name__ == "__main__":
+    main()
