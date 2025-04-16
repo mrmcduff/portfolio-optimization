@@ -540,9 +540,9 @@ def run_all(args: argparse.Namespace) -> int:
         output=DEFAULT_PATHS["models_dir"],
         period=getattr(args, "period", "recent"),
         risk_free_rate=getattr(args, "risk_free_rate", 0.02),
-        max_weight=0.25,
-        min_weight=0.01,
-        allow_short=False,
+        max_weight=getattr(args, "max_weight", 0.25),
+        min_weight=getattr(args, "min_weight", 0.01),
+        allow_short=getattr(args, "allow_short", False),
         rebalance_portfolio=getattr(args, "rebalance_portfolio", False),
         rebalance_frequency=getattr(args, "rebalance_frequency", "Q"),
         estimation_window=getattr(args, "estimation_window", 252),
@@ -580,8 +580,8 @@ def run_all(args: argparse.Namespace) -> int:
         ],
         names=[
             "S&P 500",
-            "60/40 Portfolio",
-            "Custom Algorithm Portfolio",
+            "60/40",
+            "Custom Alg",
         ],
         risk_free_rate=getattr(args, "risk_free_rate", 0.02),
         output=DEFAULT_PATHS["analysis_dir"],
@@ -911,6 +911,22 @@ def main() -> int:
         "--include-weighted",
         action="store_true",
         help="Include the Weighted Top Five Algorithm in the analysis",
+    )
+    # Add optimization parameters
+    all_parser.add_argument(
+        "--allow-short",
+        action="store_true",
+        help="Allow short selling in the Custom Algorithm portfolio",
+    )
+    all_parser.add_argument(
+        "--max-weight",
+        type=float,
+        help="Maximum weight for any asset in the Custom Algorithm portfolio",
+    )
+    all_parser.add_argument(
+        "--min-weight",
+        type=float,
+        help="Minimum weight for any asset in the Custom Algorithm portfolio",
     )
 
     # Parse arguments
