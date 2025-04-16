@@ -26,8 +26,8 @@ DEFAULT_PATHS = {
     "balanced_returns": "data/processed/balanced_returns.csv",
     # Results
     "models_dir": "results/models",
-    "ca_weights": "results/models/ca_optimal_weights.csv",
-    "ca_returns": "results/models/ca_portfolio_returns.csv",
+    "ca_weights": "results/models/fa_optimal_weights.csv",
+    "ca_returns": "results/models/fa_portfolio_returns.csv",
     "ra_returns": "results/models/returns_algorithm_portfolio.csv",  # Returns algorithm portfolio returns
     "wtf_returns": "results/models/weighted_top_five_portfolio.csv",  # Weighted Top Five portfolio returns
     # Visualizations
@@ -577,15 +577,11 @@ def run_all(args: argparse.Namespace) -> int:
             DEFAULT_PATHS["spy_returns"],
             DEFAULT_PATHS["balanced_returns"],
             DEFAULT_PATHS["ca_returns"],
-            DEFAULT_PATHS["ra_returns"],
-            DEFAULT_PATHS["wtf_returns"],
         ],
         names=[
             "S&P 500",
             "60/40 Portfolio",
             "Custom Algorithm Portfolio",
-            "Returns Algorithm Portfolio",
-            "Weighted Top Five Portfolio",
         ],
         risk_free_rate=getattr(args, "risk_free_rate", 0.02),
         output=DEFAULT_PATHS["analysis_dir"],
@@ -596,11 +592,24 @@ def run_all(args: argparse.Namespace) -> int:
         ("Preprocessing", preprocess, preprocess_args),
         ("Benchmark Generation", generate_benchmarks, benchmark_args),
         ("Custom Algorithm Optimization", optimize, optimize_args),
-        ("Returns Algorithm Optimization", run_returns_algorithm, returns_args),
-        ("Weighted Top Five Optimization", run_weighted_top_five, weighted_args),
         ("Visualization", visualize, visualize_args),
         ("Benchmark Analysis", analyze, analyze_args),
     ]
+
+    # Add optional algorithms if explicitly requested
+    if getattr(args, "include_returns", False):
+        steps.insert(
+            3, ("Returns Algorithm Optimization", run_returns_algorithm, returns_args)
+        )
+        analyze_args.files.append(DEFAULT_PATHS["ra_returns"])
+        analyze_args.names.append("Returns Algorithm Portfolio")
+
+    if getattr(args, "include_weighted", False):
+        steps.insert(
+            4, ("Weighted Top Five Optimization", run_weighted_top_five, weighted_args)
+        )
+        analyze_args.files.append(DEFAULT_PATHS["wtf_returns"])
+        analyze_args.names.append("Weighted Top Five Portfolio")
 
     for step_name, step_func, step_args in steps:
         print(f"\n{'=' * 80}\n=== Running Step: {step_name} ===\n{'=' * 80}\n")
@@ -892,14 +901,24 @@ def main() -> int:
         default=252,
         help="Lookback window in trading days for parameter estimation (default: 252 days)",
     )
+    # Add flags for optional algorithms
+    all_parser.add_argument(
+        "--include-returns",
+        action="store_true",
+        help="Include the Returns Algorithm in the analysis",
+    )
+    all_parser.add_argument(
+        "--include-weighted",
+        action="store_true",
+        help="Include the Weighted Top Five Algorithm in the analysis",
+    )
 
     # Parse arguments
     args = parser.parse_args()
 
-    # If no command specified, show help
+    # If no command specified, run 'all' by default
     if args.command is None:
-        parser.print_help()
-        return 0
+        return run_all(args)
 
     # Call the appropriate function
     command_funcs = {
