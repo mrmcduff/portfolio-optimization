@@ -4,27 +4,27 @@
 
 ## Performance Metrics
 
-|                       | S&P 500   | 60/40 Portfolio   | Custom Algorithm Portfolio   |
-|:----------------------|:----------|:------------------|:-----------------------------|
-| Total Return          | 138.65%   | 78.22%            | 129.83%                      |
-| Annualized Return     | 16.41%    | 10.04%            | 20.65%                       |
-| Annualized Volatility | 19.62%    | 12.25%            | 20.47%                       |
-| Sharpe Ratio          | 0.734     | 0.656             | 0.911                        |
-| Jensen's Alpha        | -0.01%    | -0.47%            | 3.16%                        |
-| Beta                  | 1.00      | 0.61              | 0.93                         |
-| Max Drawdown          | -33.72%   | -21.19%           | -32.49%                      |
-| Value at Risk (95%)   | -1.85%    | -1.12%            | -1.82%                       |
-| Conditional VaR (95%) | -2.99%    | -1.84%            | -3.13%                       |
-| Skewness              | -0.530    | -0.665            | -0.530                       |
-| Kurtosis              | 11.954    | 14.681            | 9.952                        |
+|                       | S&P 500   | 60/40   | Custom Alg   |
+|:----------------------|:----------|:--------|:-------------|
+| Total Return          | 138.65%   | 78.22%  | 114.08%      |
+| Annualized Return     | 16.41%    | 10.04%  | 18.73%       |
+| Annualized Volatility | 19.62%    | 12.25%  | 19.57%       |
+| Sharpe Ratio          | 0.734     | 0.656   | 0.855        |
+| Jensen's Alpha        | -0.01%    | -0.47%  | 1.76%        |
+| Beta                  | 1.00      | 0.61    | 0.91         |
+| Max Drawdown          | -33.72%   | -21.19% | -33.03%      |
+| Value at Risk (95%)   | -1.85%    | -1.12%  | -1.65%       |
+| Conditional VaR (95%) | -2.99%    | -1.84%  | -2.99%       |
+| Skewness              | -0.530    | -0.665  | -0.525       |
+| Kurtosis              | 11.954    | 14.681  | 15.112       |
 
 ## Return Correlations
 
-|                            |   S&P 500 |   60/40 Portfolio |   Custom Algorithm Portfolio |
-|:---------------------------|----------:|------------------:|-----------------------------:|
-| S&P 500                    |  1        |          0.977159 |                     0.950754 |
-| 60/40 Portfolio            |  0.977159 |          1        |                     0.919913 |
-| Custom Algorithm Portfolio |  0.950754 |          0.919913 |                     1        |
+|            |   S&P 500 |    60/40 |   Custom Alg |
+|:-----------|----------:|---------:|-------------:|
+| S&P 500    |  1        | 0.977159 |     0.977352 |
+| 60/40      |  0.977159 | 1        |     0.94943  |
+| Custom Alg |  0.977352 | 0.94943  |     1        |
 
 ## Benchmark Descriptions
 
@@ -32,11 +32,11 @@
 
 Market benchmark used for calculating Beta and Jensen's Alpha.
 
-### 60/40 Portfolio
+### 60/40
 
 Portfolio or benchmark returns series.
 
-### Custom Algorithm Portfolio
+### Custom Alg
 
 Portfolio or benchmark returns series.
 
