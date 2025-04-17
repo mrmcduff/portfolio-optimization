@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Dict, Tuple
 
@@ -9,6 +10,21 @@ class SingleIndexModel:
     """
     Implementation of the Sharpe Single-Index Model for portfolio optimization.
     """
+
+    # Define sector ETFs at the class level for consistent use across methods
+    X_ITEMS = [
+        "XLB",
+        "XLC",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLRE",
+        "XLU",
+        "XLV",
+        "XLY",
+    ]
 
     def __init__(
         self,
@@ -112,15 +128,17 @@ class SingleIndexModel:
             Dictionary of parameters for each security
         """
         print("\nEstimating parameters for each security:")
-        print("-" * 80)
-        print(
-            f"{'Security':<10} {'Beta':>10} {'Alpha':>10} {'Mean Ret':>10} {'Exc Ret':>10} {'Res Var':>10} {'ER/Beta':>10}"
-        )
-        print("-" * 80)
 
-        # Calculate market parameters
-        market_mean = float(self.market_returns.mean())
-        market_variance = float(self.market_returns.var())
+        # Calculate market parameters safely
+        if isinstance(self.market_returns.mean(), pd.Series):
+            market_mean = float(self.market_returns.mean().iloc[0])
+        else:
+            market_mean = float(self.market_returns.mean())
+
+        if isinstance(self.market_returns.var(), pd.Series):
+            market_variance = float(self.market_returns.var().iloc[0])
+        else:
+            market_variance = float(self.market_returns.var())
 
         if market_variance == 0 or np.isnan(market_variance):
             raise ValueError(
@@ -136,22 +154,9 @@ class SingleIndexModel:
         self.parameters = {}
         current_date = self.returns.index[-1]
 
-        # Only use X-items (sector ETFs) for all calculations
-        X_ITEMS = [
-            "XLB",
-            "XLC",
-            "XLE",
-            "XLF",
-            "XLI",
-            "XLK",
-            "XLP",
-            "XLRE",
-            "XLU",
-            "XLV",
-            "XLY",
-        ]
+        # First pass: calculate basic parameters for each security
         for security in self.returns.columns:
-            if security not in X_ITEMS:
+            if security not in self.X_ITEMS:
                 continue
             try:
                 y = self.returns[security]
@@ -162,20 +167,21 @@ class SingleIndexModel:
                 )
                 # Linear regression: y = alpha + beta * x
                 beta, alpha = np.polyfit(x, y, 1)
-                mean_return = float(y.mean())
+                mean_return = float(
+                    y.mean().iloc[0] if isinstance(y.mean(), pd.Series) else y.mean()
+                )
                 excess_return = mean_return - daily_rf
                 # Calculate residual variance with a minimum threshold
                 residual_variance = max(
-                    float((y - (alpha + beta * x)).var()),
-                    1e-6,  # Small positive number to avoid division by zero
-                )
+                    float(y.var() - beta**2 * x.var()), 1e-6
+                )  # Minimum to avoid division by zero
+
                 # Calculate excess return to beta ratio
-                try:
-                    excess_return_to_beta = (
-                        excess_return / beta if beta > 0 else float("-inf")
-                    )
-                except Exception:
-                    excess_return_to_beta = float("-inf")
+                excess_return_to_beta = (
+                    excess_return / beta if beta > 0 else float("-inf")
+                )
+
+                # Store parameters
                 self.parameters[security] = {
                     "alpha": alpha,
                     "beta": beta,
@@ -184,9 +190,8 @@ class SingleIndexModel:
                     "mean_return": mean_return,
                     "excess_return": excess_return,
                 }
-                print(
-                    f"{security:<10} {beta:>10.4f} {alpha:>10.4f} {mean_return:>10.4f} {excess_return:>10.4f} {residual_variance:>10.4f} {excess_return_to_beta:>10.4f}"
-                )
+
+                # Create a selection log entry
                 self.selection_log.append(
                     {
                         "Date": current_date,
@@ -197,7 +202,7 @@ class SingleIndexModel:
                         "Excess Return": excess_return,
                         "Residual Variance": residual_variance,
                         "Excess Return/Beta": excess_return_to_beta,
-                        "Selected": False,
+                        "Selected": False,  # Will be updated during portfolio calculation
                     }
                 )
             except Exception as e:
@@ -205,7 +210,7 @@ class SingleIndexModel:
                     f"[WARNING] Skipping security '{security}' in parameter estimation due to error: {e}"
                 )
 
-        # Compute ER/Beta ranks for logging only for securities with parameters
+        # Second pass: sort by ER/Beta and calculate C_i values
         er_beta_list = [
             (s, self.parameters[s]["excess_return_to_beta"])
             for s in self.returns.columns
@@ -214,23 +219,62 @@ class SingleIndexModel:
         sorted_by_er_beta = sorted(er_beta_list, key=lambda x: x[1], reverse=True)
         er_beta_ranks = {s: i + 1 for i, (s, _) in enumerate(sorted_by_er_beta)}
 
-        return self.parameters
+        # Calculate C_i values for each security
+        c_values = {}
+        sum_numerator = 0
+        sum_denominator = 0
 
-        print("\nEstimating parameters for each security:")
-        print("-" * 80)
+        # Print headers for the sorted table
+        print("-" * 100)
         print(
-            f"{'Security':<10} {'Beta':>10} {'Alpha':>10} {'Mean Ret':>10} {'Exc Ret':>10} {'Res Var':>10} {'ER/Beta':>10}"
+            f"{'Security':<10} {'Beta':>10} {'Alpha':>10} {'Mean Ret':>10} {'Exc Ret':>10} {'Res Var':>10} {'ER/Beta':>10} {'C_i':>10} {'Selected':>10}"
         )
-        print("-" * 80)
+        print("-" * 100)
 
-        # Calculate market parameters
-        market_mean = float(self.market_returns.mean())
-        market_variance = float(self.market_returns.var())
+        # Process securities in order of descending ER/Beta
+        for security, _ in sorted_by_er_beta:
+            params = self.parameters[security]
+            beta = params["beta"]
+            alpha = params["alpha"]
+            mean_return = params["mean_return"]
+            excess_return = params["excess_return"]
+            residual_variance = params["residual_variance"]
+            er_beta = params["excess_return_to_beta"]
 
-        if market_variance == 0 or np.isnan(market_variance):
-            raise ValueError(
-                "Market variance is zero or NaN, cannot estimate parameters"
+            # Calculate C_i (cutoff value) as we go
+            try:
+                term = (beta / residual_variance) * excess_return / beta
+                sum_numerator += term
+                sum_denominator += beta**2 / residual_variance
+                c_i = sum_numerator / sum_denominator if sum_denominator > 0 else 0
+                c_values[security] = c_i
+            except Exception:
+                c_i = 0
+                c_values[security] = 0
+
+            # Determine if security would be selected (ER/Beta > C_i)
+            selected = "Yes" if er_beta > c_i else "No"
+
+            # Print in sorted order with C_i and Selected columns
+            print(
+                f"{security:<10} {beta:>10.4f} {alpha:>10.4f} {mean_return:>10.4f} "
+                f"{excess_return:>10.4f} {residual_variance:>10.4f} {er_beta:>10.4f} "
+                f"{c_i:>10.4f} {selected:>10}"
             )
+
+            # Update selection log with C_i values
+            for entry in self.selection_log:
+                if entry["Security"] == security and entry["Date"] == current_date:
+                    entry["C_i"] = c_i
+                    entry["Rank"] = er_beta_ranks.get(security, 0)
+
+        # Store C_i values for later use
+        self.c_values = c_values
+
+        print(
+            f"\nEstimated parameters successfully for {len(self.parameters)} securities."
+        )
+        return self.parameters
 
         # Calculate daily risk-free rate
         daily_rf = (1 + self.risk_free_rate) ** (1 / 252) - 1
@@ -243,7 +287,11 @@ class SingleIndexModel:
         for security in self.returns.columns:
             # Calculate security excess returns
             security_returns = self.returns[security]
-            mean_return = float(security_returns.mean())
+            mean_return = float(
+                security_returns.mean().iloc[0]
+                if isinstance(security_returns.mean(), pd.Series)
+                else security_returns.mean()
+            )
             excess_returns = security_returns - daily_rf
 
             # Calculate beta using covariance
@@ -254,7 +302,18 @@ class SingleIndexModel:
                 beta = 1.0  # Default to market beta if calculation fails
 
             # Calculate alpha
-            alpha = float(excess_returns.mean() - beta * market_excess_returns.mean())
+            # Safely convert Series to float if needed
+            excess_mean = (
+                excess_returns.mean().iloc[0]
+                if isinstance(excess_returns.mean(), pd.Series)
+                else excess_returns.mean()
+            )
+            market_excess_mean = (
+                market_excess_returns.mean().iloc[0]
+                if isinstance(market_excess_returns.mean(), pd.Series)
+                else market_excess_returns.mean()
+            )
+            alpha = float(excess_mean - beta * market_excess_mean)
 
             # Calculate residual variance with a minimum threshold
             residual_variance = max(
@@ -319,53 +378,58 @@ class SingleIndexModel:
         print("-" * 80)
 
         # Calculate market parameters
-        market_mean = float(self.market_returns.mean())
-        market_variance = float(self.market_returns.var())
+        market_mean = float(
+            self.market_returns.mean().iloc[0]
+            if isinstance(self.market_returns.mean(), pd.Series)
+            else self.market_returns.mean()
+        )
+        market_variance = float(
+            self.market_returns.var().iloc[0]
+            if isinstance(self.market_returns.var(), pd.Series)
+            else self.market_returns.var()
+        )
         daily_rf = (1 + self.risk_free_rate) ** (1 / 252) - 1
 
-        # Calculate c* (market risk premium)
+        # Market parameters for reference
         market_excess_return = market_mean - daily_rf
-        c_star = market_excess_return / market_variance if market_variance > 0 else 0
 
         print("Market Parameters:")
         print(f"Market Mean Return: {market_mean:.6f}")
         print(f"Market Variance: {market_variance:.6f}")
         print(f"Daily Risk-Free Rate: {daily_rf:.6f}")
         print(f"Market Excess Return: {market_excess_return:.6f}")
-        print(f"C* (Cut-off Rate): {c_star:.6f}")
-        print("-" * 80)
-        print(f"{'Security':<10} {'Z_i':>10} {'C_i':>10} {'Weight':>10}")
         print("-" * 80)
 
         current_date = self.returns.index[-1]
 
         # Calculate optimal weights
         weights = {}
-        c_values = {}  # Store C_i values for each security
+        c_values = {}  # Store C_i and Z_i values
         z_values = {}  # Store Z_i values for logging
 
-        # Compute ER/Beta ranks for logging
+        # Compute ER/Beta ranks and sort securities
         er_beta_list = [
             (s, self.parameters[s]["excess_return_to_beta"])
             for s in self.returns.columns
-            if s in self.parameters
+            if s in self.parameters and s in self.X_ITEMS
         ]
         sorted_by_er_beta = sorted(er_beta_list, key=lambda x: x[1], reverse=True)
+        sorted_securities = [s for s, _ in sorted_by_er_beta]
         er_beta_ranks = {s: i + 1 for i, (s, _) in enumerate(sorted_by_er_beta)}
 
         # First pass: calculate all C_i values
         sum_numerator = 0
         sum_denominator = 0
 
-        import json
+        # Process securities in order of descending ER/Beta
 
-        for security, params in self.parameters.items():
+        for security in sorted_securities:
+            params = self.parameters[security]
             beta = params["beta"]
             residual_variance = params["residual_variance"]
             excess_return = params["excess_return"]
             alpha = params["alpha"]
             er_beta = params["excess_return_to_beta"]
-            rank = er_beta_ranks.get(security, None)
 
             try:
                 term = (beta / residual_variance) * excess_return / beta
@@ -378,14 +442,56 @@ class SingleIndexModel:
                 c_i = 0
                 c_values[security] = 0
 
-        # Second pass: calculate Z_i values using C* and weights
-        for security, params in self.parameters.items():
+        # Find the C* value - iterate through securities and find where weights go negative
+        found_c_star = False
+        c_star = 0.0
+        potential_securities = []
+
+        # Use the C_i values to find C*
+        # C* is the point where we stop including securities
+        for i, security in enumerate(sorted_securities):
+            c_i = c_values[security]
+
+            # For the first security, start with its C_i
+            if i == 0:
+                c_star = c_i
+
+            # Test if security would have a positive Z_i at current C*
+            beta = self.parameters[security]["beta"]
+            residual_variance = self.parameters[security]["residual_variance"]
+            excess_return = self.parameters[security]["excess_return"]
+            er_beta = excess_return / beta
+
+            # If er_beta > c_star, include this security
+            if er_beta > c_star:
+                potential_securities.append(security)
+                # Update C* based on all securities included so far
+                sum_num = 0
+                sum_denom = 0
+                for s in potential_securities:
+                    p = self.parameters[s]
+                    b = p["beta"]
+                    rv = p["residual_variance"]
+                    er = p["excess_return"]
+                    sum_num += (b / rv) * (er / b)
+                    sum_denom += b**2 / rv
+                c_star = sum_num / sum_denom if sum_denom > 0 else 0
+            else:
+                # Found our cutoff point
+                break
+
+        # Print C* value
+        print(f"C* (Cut-off Rate): {c_star:.6f}")
+        print("-" * 80)
+
+        # Calculate Z_i values and weights using the found C*
+        weights = {}
+        for security in sorted_securities:
+            params = self.parameters[security]
             beta = params["beta"]
             residual_variance = params["residual_variance"]
             excess_return = params["excess_return"]
-            alpha = params["alpha"]
             er_beta = params["excess_return_to_beta"]
-            rank = er_beta_ranks.get(security, None)
             c_i = c_values[security]
 
             # Calculate z_i with error handling
@@ -398,7 +504,7 @@ class SingleIndexModel:
             z_values[security] = z_i
 
             print(
-                f"{security:<10} {z_i:>10.4f} {c_i:>10.4f} {weights[security]:>10.4f}"
+                f"{security:<10} {er_beta:>10.4f} {c_i:>10.4f} {z_i:>10.4f} {weights[security]:>10.4f}"
             )
 
             # Update the selection log entry for this security with all debug info
@@ -411,24 +517,13 @@ class SingleIndexModel:
                     entry["Residual Variance"] = residual_variance
                     entry["Excess Return"] = excess_return
                     entry["Excess Return/Beta"] = er_beta
-                    entry["Rank"] = rank
+                    entry["Rank"] = er_beta_ranks.get(
+                        security, 0
+                    )  # Use the actual rank from er_beta_ranks
 
         # Filter out zero weights
         # Only keep positive weights for X-items
-        X_ITEMS = [
-            "XLB",
-            "XLC",
-            "XLE",
-            "XLF",
-            "XLI",
-            "XLK",
-            "XLP",
-            "XLRE",
-            "XLU",
-            "XLV",
-            "XLY",
-        ]
-        weights = {k: v for k, v in weights.items() if v > 0 and k in X_ITEMS}
+        weights = {k: v for k, v in weights.items() if v > 0 and k in self.X_ITEMS}
 
         # Normalize remaining weights to sum to 1
         total_weight = sum(weights.values())
@@ -444,12 +539,12 @@ class SingleIndexModel:
         else:
             print("\nFalling back to equal weights (X-items only)")
             # If all calculations fail, equal weight the X-items only
-            n_securities = len(X_ITEMS)
+            n_securities = len(self.X_ITEMS)
             weight = 1.0 / n_securities
-            weights = {security: weight for security in X_ITEMS}
+            weights = {security: weight for security in self.X_ITEMS}
             # Update selection log to mark all X-items as selected
             for entry in self.selection_log:
-                if entry["Security"] in X_ITEMS and entry["Date"] == current_date:
+                if entry["Security"] in self.X_ITEMS and entry["Date"] == current_date:
                     entry["Selected"] = True
                     entry["Final Weight"] = weight
 
@@ -459,7 +554,7 @@ class SingleIndexModel:
         self.current_portfolio_expected_return = sum(
             weights.get(s, 0) * self.parameters[s]["mean_return"]
             for s in weights
-            if s in self.parameters and s in X_ITEMS
+            if s in self.parameters and s in self.X_ITEMS
         )
 
         # Calculate realized return for the next period if available
@@ -470,7 +565,9 @@ class SingleIndexModel:
             realized_return = sum(
                 weights.get(s, 0) * self.returns.loc[next_date, s]
                 for s in weights
-                if s in self.returns.columns and s in self.parameters and s in X_ITEMS
+                if s in self.returns.columns
+                and s in self.parameters
+                and s in self.X_ITEMS
             )
         self.current_portfolio_realized_return = realized_return
 
@@ -512,21 +609,12 @@ class SingleIndexModel:
             self.estimate_parameters()
 
         # Rank securities by excess return to beta ratio (descending)
-        X_ITEMS = [
-            "XLB",
-            "XLC",
-            "XLE",
-            "XLF",
-            "XLI",
-            "XLK",
-            "XLP",
-            "XLRE",
-            "XLU",
-            "XLV",
-            "XLY",
-        ]
         ranked_securities = sorted(
-            [s for s in self.returns.columns if s in self.parameters and s in X_ITEMS],
+            [
+                s
+                for s in self.returns.columns
+                if s in self.parameters and s in self.X_ITEMS
+            ],
             key=lambda s: self.parameters[s]["excess_return_to_beta"],
             reverse=True,
         )
@@ -549,18 +637,22 @@ class SingleIndexModel:
 
         # Calculate expected portfolio return and variance
         portfolio_return = sum(
-            weights[s] * self.returns[s].mean() for s in X_ITEMS if s in weights
+            weights[s] * self.returns[s].mean().iloc[0]
+            for s in self.X_ITEMS
+            if s in weights
         )
 
         # Calculate portfolio beta
         portfolio_beta = sum(
-            weights[s] * self.parameters[s]["beta"] for s in X_ITEMS if s in weights
+            weights[s] * self.parameters[s]["beta"]
+            for s in self.X_ITEMS
+            if s in weights
         )
 
         # Calculate residual variance contribution
         residual_variance_contribution = sum(
             (weights[s] ** 2) * self.parameters[s]["residual_variance"]
-            for s in X_ITEMS
+            for s in self.X_ITEMS
             if s in weights
         )
 
