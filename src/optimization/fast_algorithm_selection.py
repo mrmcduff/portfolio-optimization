@@ -165,15 +165,22 @@ class SingleIndexModel:
                     if isinstance(self.market_returns, pd.DataFrame)
                     else self.market_returns
                 )
-                # Linear regression: y = alpha + beta * x
-                beta, alpha = np.polyfit(x, y, 1)
+                # Calculate beta using covariance-based formula: Beta_i = Cov(R_i, R_m) / Var(R_m)
+                beta = float(np.cov(y, x)[0, 1] / np.var(x)) if np.var(x) > 0 else 0
+
+                # Calculate alpha: alpha = E[R_i] - beta * E[R_m]
                 mean_return = float(
                     y.mean().iloc[0] if isinstance(y.mean(), pd.Series) else y.mean()
                 )
+                alpha = mean_return - beta * x.mean()
                 excess_return = mean_return - daily_rf
                 # Calculate residual variance with a minimum threshold
+                # Calculate e_i_t = R_i_t - (alpha_i + beta_i*R_m_t) for each observation
+                residuals = y - (alpha + beta * x)
+
+                # Variance of the residuals
                 residual_variance = max(
-                    float(y.var() - beta**2 * x.var()), 1e-6
+                    float(residuals.var()), 1e-6
                 )  # Minimum to avoid division by zero
 
                 # Calculate excess return to beta ratio
@@ -241,31 +248,39 @@ class SingleIndexModel:
             residual_variance = params["residual_variance"]
             er_beta = params["excess_return_to_beta"]
 
-            # Calculate C_i (cutoff value) as we go
+            # For correct C_i calculation, we need the current c_i BEFORE adding this security
+            # This is the C_i value we should compare against the security's ER/Beta
+            current_c_i = sum_numerator / sum_denominator if sum_denominator > 0 else 0
+
             try:
+                # Now update the running sums to include this security
                 term = (beta / residual_variance) * excess_return / beta
                 sum_numerator += term
                 sum_denominator += beta**2 / residual_variance
-                c_i = sum_numerator / sum_denominator if sum_denominator > 0 else 0
-                c_values[security] = c_i
-            except Exception:
-                c_i = 0
-                c_values[security] = 0
 
-            # Determine if security would be selected (ER/Beta > C_i)
-            selected = "Yes" if er_beta > c_i else "No"
+                # The new C_i after including this security
+                new_c_i = sum_numerator / sum_denominator if sum_denominator > 0 else 0
+                c_values[security] = new_c_i
+            except Exception:
+                new_c_i = current_c_i
+                c_values[security] = current_c_i
+
+            # Determine if security would be selected (ER/Beta > current_c_i)
+            # A security is selected if its ER/Beta is greater than the C_i value
+            # BEFORE including it in the portfolio
+            selected = "Yes" if er_beta > current_c_i else "No"
 
             # Print in sorted order with C_i and Selected columns
             print(
                 f"{security:<10} {beta:>10.4f} {alpha:>10.4f} {mean_return:>10.4f} "
                 f"{excess_return:>10.4f} {residual_variance:>10.4f} {er_beta:>10.4f} "
-                f"{c_i:>10.4f} {selected:>10}"
+                f"{new_c_i:>10.4f} {selected:>10}"
             )
 
             # Update selection log with C_i values
             for entry in self.selection_log:
                 if entry["Security"] == security and entry["Date"] == current_date:
-                    entry["C_i"] = c_i
+                    entry["C_i"] = new_c_i
                     entry["Rank"] = er_beta_ranks.get(security, 0)
 
         # Store C_i values for later use
@@ -315,9 +330,12 @@ class SingleIndexModel:
             )
             alpha = float(excess_mean - beta * market_excess_mean)
 
-            # Calculate residual variance with a minimum threshold
+            # Calculate residuals: e_i_t = R_i_t - (alpha_i + beta_i*R_m_t) for each observation
+            residuals = security_returns - (alpha + beta * self.market_returns)
+
+            # Variance of the residuals
             residual_variance = max(
-                float(excess_returns.var() - (beta**2 * market_variance)),
+                float(residuals.var()),
                 1e-6,  # Small positive number to avoid division by zero
             )
 
@@ -442,69 +460,106 @@ class SingleIndexModel:
                 c_i = 0
                 c_values[security] = 0
 
-        # Find the C* value - iterate through securities and find where weights go negative
-        found_c_star = False
+        # Calculate C* using the improved approach where we compare ER/Beta against C_i BEFORE including a security
+        sum_numerator = 0
+        sum_denominator = 0
         c_star = 0.0
-        potential_securities = []
+        selected_securities = []
+        # Store the selection C_i value for each security (the C_i value used to make selection decision)
+        selection_c_i_values = {}
 
-        # Use the C_i values to find C*
-        # C* is the point where we stop including securities
-        for i, security in enumerate(sorted_securities):
-            c_i = c_values[security]
-
-            # For the first security, start with its C_i
-            if i == 0:
-                c_star = c_i
-
-            # Test if security would have a positive Z_i at current C*
-            beta = self.parameters[security]["beta"]
-            residual_variance = self.parameters[security]["residual_variance"]
-            excess_return = self.parameters[security]["excess_return"]
-            er_beta = excess_return / beta
-
-            # If er_beta > c_star, include this security
-            if er_beta > c_star:
-                potential_securities.append(security)
-                # Update C* based on all securities included so far
-                sum_num = 0
-                sum_denom = 0
-                for s in potential_securities:
-                    p = self.parameters[s]
-                    b = p["beta"]
-                    rv = p["residual_variance"]
-                    er = p["excess_return"]
-                    sum_num += (b / rv) * (er / b)
-                    sum_denom += b**2 / rv
-                c_star = sum_num / sum_denom if sum_denom > 0 else 0
-            else:
-                # Found our cutoff point
-                break
-
-        # Print C* value
-        print(f"C* (Cut-off Rate): {c_star:.6f}")
-        print("-" * 80)
-
-        # Calculate Z_i values and weights using the found C*
-        weights = {}
+        # Process securities in descending ER/Beta order
         for security in sorted_securities:
             params = self.parameters[security]
             beta = params["beta"]
             residual_variance = params["residual_variance"]
             excess_return = params["excess_return"]
             er_beta = params["excess_return_to_beta"]
-            c_i = c_values[security]
 
-            # Calculate z_i with error handling
-            try:
-                z_i = (beta / residual_variance) * (excess_return / beta - c_star)
-                weights[security] = max(0, z_i)  # Only keep positive weights
-            except Exception:
+            # Special case for the first security (highest ER/Beta)
+            # The first security should always be selected if its ER/Beta > 0
+            if len(selected_securities) == 0 and er_beta > 0:
+                # For the first security, set C_i so it's guaranteed to be selected
+                # Take 80% of ER/Beta to ensure selection
+                current_c_i = er_beta * 0.8 if er_beta > 0 else 0
+                selection_c_i_values[security] = current_c_i
+                selected = True
+            else:
+                # Normal case: Get the current C_i before adding this security
+                current_c_i = (
+                    sum_numerator / sum_denominator if sum_denominator > 0 else 0
+                )
+                selection_c_i_values[security] = current_c_i
+                # Select if ER/Beta > current C_i
+                selected = er_beta > current_c_i
+
+            # If selected, add to the list
+            if selected:
+                selected_securities.append(security)
+
+                # Update sums for next C_i calculation
+                term = (beta / residual_variance) * excess_return / beta
+                sum_numerator += term
+                sum_denominator += beta**2 / residual_variance
+            else:
+                # No more securities to include
+                break
+
+        # Final C* is the last C_i calculated after adding all selected securities
+        c_star = sum_numerator / sum_denominator if sum_denominator > 0 else 0
+
+        # Print C* value
+        print(f"C* (Cut-off Rate): {c_star:.6f}")
+        print("-" * 120)
+
+        # Calculate Z_i values and weights using the selected securities and found C*
+        weights = {}
+
+        # Calculate Z_i values and weights
+        # Z_i is ONLY calculated for securities where ER/Beta > C*
+        # All other securities have Z_i = 0
+        print(
+            f"{'Security':<10} {'ER/Beta':>10} {'C_i':>10} {'Z_i':>10} {'Weight':>10} {'Selected':>10}"
+        )
+        print("-" * 120)
+
+        for security in sorted_securities:
+            params = self.parameters[security]
+            beta = params["beta"]
+            residual_variance = params["residual_variance"]
+            excess_return = params["excess_return"]
+            er_beta = params["excess_return_to_beta"]
+            c_i = c_values.get(security, 0)
+
+            # Only calculate Z_i for securities in the selected list
+            # These are the securities where ER/Beta > C* (selection criterion)
+            if security in selected_securities:
+                try:
+                    # IMPORTANT: Use the selection_c_i value that was used to make the decision
+                    # NOT the final c_star value
+                    selection_c_i = selection_c_i_values.get(security, 0)
+
+                    # By definition, er_beta > selection_c_i for selected securities
+                    z_i = (beta / residual_variance) * (er_beta - selection_c_i)
+
+                    # This should now be positive by definition of selection
+                    weights[security] = max(0, z_i)  # Use max as a safety
+                except Exception:
+                    z_i = 0.0
+                    weights[security] = 0.0
+            else:
+                # For unselected securities, Z_i is 0 by definition
                 z_i = 0.0
                 weights[security] = 0.0
+
+            # Record the Z_i value
             z_values[security] = z_i
 
+            # Flag to show which securities were selected
+            is_selected = "Yes" if security in selected_securities else "No"
+
             print(
-                f"{security:<10} {er_beta:>10.4f} {c_i:>10.4f} {z_i:>10.4f} {weights[security]:>10.4f}"
+                f"{security:<10} {er_beta:>10.4f} {c_i:>10.4f} {z_i:>10.4f} {weights[security]:>10.4f} {is_selected:>10}"
             )
 
             # Update the selection log entry for this security with all debug info
