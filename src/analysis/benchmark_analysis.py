@@ -27,6 +27,25 @@ def plot_one_factor_fast_composition(output_dir: str):
         print(f"Rebalancing file not found: {rebal_path}")
         return
     df = pd.read_excel(rebal_path)
+    # Filter by start_date and end_date if provided in environment variables
+    import os
+
+    start_date_env = os.environ.get("BENCHMARK_START_DATE")
+    end_date_env = os.environ.get("BENCHMARK_END_DATE")
+    if start_date_env:
+        df = df[pd.to_datetime(df["date"]) >= pd.to_datetime(start_date_env)]
+    if end_date_env:
+        df = df[pd.to_datetime(df["date"]) <= pd.to_datetime(end_date_env)]
+
+    # Filter by start_date and end_date if provided in environment variables
+    import os
+
+    start_date_env = os.environ.get("BENCHMARK_START_DATE")
+    end_date_env = os.environ.get("BENCHMARK_END_DATE")
+    if start_date_env:
+        df = df[pd.to_datetime(df["end_date"]) >= pd.to_datetime(start_date_env)]
+    if end_date_env:
+        df = df[pd.to_datetime(df["end_date"]) <= pd.to_datetime(end_date_env)]
 
     # Parse weights (stored as dicts in Excel)
     if isinstance(df.loc[0, "weights"], str):
@@ -74,6 +93,25 @@ def plot_custom_algorithm_composition(output_dir: str):
         print(f"Rebalancing file not found: {rebal_path}")
         return
     df = pd.read_excel(rebal_path)
+    # Filter by start_date and end_date if provided in environment variables
+    import os
+
+    start_date_env = os.environ.get("BENCHMARK_START_DATE")
+    end_date_env = os.environ.get("BENCHMARK_END_DATE")
+    if start_date_env:
+        df = df[pd.to_datetime(df["date"]) >= pd.to_datetime(start_date_env)]
+    if end_date_env:
+        df = df[pd.to_datetime(df["date"]) <= pd.to_datetime(end_date_env)]
+
+    # Filter by start_date and end_date if provided in environment variables
+    import os
+
+    start_date_env = os.environ.get("BENCHMARK_START_DATE")
+    end_date_env = os.environ.get("BENCHMARK_END_DATE")
+    if start_date_env:
+        df = df[pd.to_datetime(df["end_date"]) >= pd.to_datetime(start_date_env)]
+    if end_date_env:
+        df = df[pd.to_datetime(df["end_date"]) <= pd.to_datetime(end_date_env)]
 
     # Parse weights (stored as dicts in Excel)
     if isinstance(df.loc[0, "weights"], str):

@@ -17,6 +17,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from src.config.periods import get_period_range
 from src.optimization.fast_algorithm_selection import SingleIndexModel
 
 # Ensure Excel writer engine is available
@@ -59,6 +60,7 @@ def analyze_portfolio_performance_with_rebalancing(
     rebalance_frequency: str = "M",
     lookback_window: int = 252,
     years: int = 5,
+    verbose: bool = False,
 ) -> pd.Series:
     """
     Analyze portfolio performance with periodic rebalancing.
@@ -131,6 +133,8 @@ def analyze_portfolio_performance_with_rebalancing(
             returns=lookback_data,
             market_returns=market_returns.loc[lookback_start:start_rebal],
             risk_free_rate=risk_free_rate,
+            output_dir=output_dir,
+            verbose=verbose,
         )
         # Calculate optimal portfolio and get the selected weights
         current_weights = model.calculate_optimal_portfolio()
@@ -231,8 +235,6 @@ def analyze_portfolio_performance_with_rebalancing(
         os.path.join(output_dir, "one_factor_fast_rebalancing.xlsx"), index=False
     )
 
-    print("Portfolio analysis completed successfully!")
-
     return portfolio_returns
 
 
@@ -245,6 +247,9 @@ def main(
     rebalance_frequency: str = "M",
     lookback_window: int = 252,
     years: int = 5,
+    start_date: str = None,
+    end_date: str = None,
+    verbose: bool = False,
 ) -> None:
     """
     Main function to run the One Factor Fast Algorithm optimization.
@@ -267,6 +272,12 @@ def main(
         Lookback window for parameter estimation, by default 252
     years : int, optional
         Number of years to analyze, by default 5
+    start_date : str, optional
+        Start date for custom period (YYYY-MM-DD format)
+    end_date : str, optional
+        End date for custom period (YYYY-MM-DD format)
+    verbose : bool, optional
+        Enable verbose logging, by default False
     """
     print("Running One-Factor Fast Algorithm portfolio optimization")
 
@@ -278,6 +289,37 @@ def main(
     print(f"Shape: {returns_data.shape}")
     print(f"Successfully loaded returns data from {market_path}")
     print(f"Shape: {market_data.shape}")
+
+    # Use period configuration from src.config.periods
+    if period and period != "custom":
+        if not start_date or not end_date:
+            try:
+                default_start, default_end = get_period_range(period)
+                if not start_date:
+                    start_date = default_start
+                if not end_date:
+                    end_date = default_end
+            except Exception as e:
+                print(f"Warning: Could not get period range for '{period}': {e}")
+    # Filter by custom or named period if specified
+    if period in ("custom", "recent", "financial_crisis", "post_crisis"):
+        if start_date:
+            returns_data = returns_data[
+                returns_data.index >= pd.to_datetime(start_date)
+            ]
+            market_data = market_data[market_data.index >= pd.to_datetime(start_date)]
+        if end_date:
+            returns_data = returns_data[returns_data.index <= pd.to_datetime(end_date)]
+            market_data = market_data[market_data.index <= pd.to_datetime(end_date)]
+    # Log the date boundaries used and the actual dates in the filtered data
+    print(f"Start date argument: {start_date}")
+    print(f"End date argument: {end_date}")
+    print(
+        f"First returns date used: {returns_data.index[0].strftime('%Y-%m-%d') if not returns_data.empty else 'N/A'}"
+    )
+    print(
+        f"Last returns date used: {returns_data.index[-1].strftime('%Y-%m-%d') if not returns_data.empty else 'N/A'}"
+    )
 
     # Run analysis
     portfolio_returns = analyze_portfolio_performance_with_rebalancing(
@@ -291,7 +333,6 @@ def main(
         years=years,
     )
 
-    print("Portfolio analysis completed successfully!")
     print("\nOne-Factor Fast Algorithm optimization complete")
 
     # Calculate and print performance metrics
@@ -309,56 +350,34 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="One-Factor Fast Algorithm portfolio optimization"
+        description="One-Factor Fast Algorithm Portfolio Optimization"
+    )
+    parser.add_argument("--data", required=True, help="Path to returns data CSV")
+    parser.add_argument("--market", required=True, help="Path to market returns CSV")
+    parser.add_argument("--output", required=True, help="Output directory for results")
+    parser.add_argument(
+        "--period", default="recent", help="Period type: recent or custom"
     )
     parser.add_argument(
-        "--data", "-d", required=True, help="Path to the returns CSV file"
+        "--risk-free-rate", type=float, default=0.02, help="Annualized risk-free rate"
     )
     parser.add_argument(
-        "--market", "-m", required=True, help="Path to the market returns CSV file"
+        "--rebalance-frequency", default="M", help="Rebalancing frequency (D/W/M/Q/Y)"
     )
     parser.add_argument(
-        "--output", "-o", required=True, help="Directory to save output files"
+        "--lookback-window", type=int, default=252, help="Lookback window in days"
     )
     parser.add_argument(
-        "--period",
-        "-p",
-        choices=["financial_crisis", "post_crisis", "recent", "custom"],
-        help="Period to analyze (use 'custom' with --start-date and --end-date for custom periods)",
+        "--years", type=int, default=5, help="Number of years to analyze"
     )
     parser.add_argument(
-        "--start-date",
-        type=str,
-        help="Start date for custom period (YYYY-MM-DD format)",
+        "--start-date", type=str, default=None, help="Start date (YYYY-MM-DD)"
     )
     parser.add_argument(
-        "--end-date",
-        type=str,
-        help="End date for custom period (YYYY-MM-DD format)",
+        "--end-date", type=str, default=None, help="End date (YYYY-MM-DD)"
     )
     parser.add_argument(
-        "--years",
-        type=int,
-        help="Number of years for custom period (starting from start-date)",
-    )
-    parser.add_argument(
-        "--risk-free-rate",
-        "-r",
-        type=float,
-        default=0.02,
-        help="Risk-free rate (annualized)",
-    )
-    parser.add_argument(
-        "--rebalance-frequency",
-        choices=["D", "W", "M", "Q", "A"],
-        default="M",
-        help="Frequency for portfolio rebalancing (default: M for monthly)",
-    )
-    parser.add_argument(
-        "--lookback-window",
-        type=int,
-        default=252,
-        help="Lookback window in trading days for parameter estimation (default: 252 days)",
+        "--verbose", action="store_true", help="Enable verbose logging to console"
     )
     args = parser.parse_args()
 
@@ -371,4 +390,23 @@ if __name__ == "__main__":
         rebalance_frequency=args.rebalance_frequency,
         lookback_window=args.lookback_window,
         years=args.years,
+        start_date=getattr(args, "start_date", None),
+        end_date=getattr(args, "end_date", None),
+        verbose=getattr(args, "verbose", False),
+    )
+
+    args = parser.parse_args()
+
+    main(
+        args.data,
+        args.market,
+        args.output,
+        period=args.period,
+        risk_free_rate=args.risk_free_rate,
+        rebalance_frequency=args.rebalance_frequency,
+        lookback_window=args.lookback_window,
+        years=args.years,
+        start_date=getattr(args, "start_date", None),
+        end_date=getattr(args, "end_date", None),
+        verbose=getattr(args, "verbose", False),
     )

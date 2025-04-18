@@ -9,6 +9,26 @@ import pandas as pd
 class SingleIndexModel:
     """
     Implementation of the Sharpe Single-Index Model for portfolio optimization.
+
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        Security returns
+    market_returns : pd.Series
+        Market returns
+    risk_free_rate : float
+        Annualized risk-free rate
+    output_dir : str
+        Directory to save logs and results
+    logger : callable or object, optional
+        Logger function or object for logging output. If None, logs to 'ofa_algorithm_log.txt'.
+        If verbose is True, logs to both file and console.
+    verbose : bool, optional
+        If True, logs will be printed to console as well as file.
+    """
+
+    """
+    Implementation of the Sharpe Single-Index Model for portfolio optimization.
     """
 
     # Define sector ETFs at the class level for consistent use across methods
@@ -31,6 +51,9 @@ class SingleIndexModel:
         returns: pd.DataFrame,
         market_returns: pd.Series,
         risk_free_rate: float = 0.02,
+        output_dir: str = "results/models",
+        logger=None,
+        verbose: bool = False,
     ):
         """
         Initialize the Single Index Model.
@@ -43,21 +66,36 @@ class SingleIndexModel:
             Series of market returns (in decimal form)
         risk_free_rate : float, optional
             Annualized risk-free rate, by default 0.02
+        output_dir : str, optional
+            Directory to save logs and results, by default "results/models"
+        logger : callable or object, optional
+            Logger function or object for logging output. If None, logs to 'ofa_algorithm_log.txt'.
+            If verbose is True, logs to both file and console.
+        verbose : bool, optional
+            If True, logs will be printed to console as well as file.
         """
         # Returns are already in decimal form
         self.returns = returns
         self.market_returns = market_returns
         self.risk_free_rate = risk_free_rate
         self.parameters = {}
-        self._validate_data()
-
-        # Initialize selection log for this period
-        self.selection_log = []
-
-        # Prepare output file path
-        output_dir = "results/models"
+        self.verbose = verbose
+        self.output_dir = output_dir
         self.output_file = os.path.join(output_dir, "ofa_selection_analysis.csv")
         os.makedirs(output_dir, exist_ok=True)
+        # Setup logger
+        if logger is None:
+            log_path = os.path.join(output_dir, "ofa_algorithm_log.txt")
+
+            def default_logger(msg):
+                with open(log_path, "a") as f:
+                    f.write(msg + "\n")
+                if verbose:
+                    print(msg)
+
+            self.logger = default_logger
+        else:
+            self.logger = logger
         # Only clear the file if it doesn't exist or is empty
         if (
             not os.path.exists(self.output_file)
@@ -65,7 +103,9 @@ class SingleIndexModel:
         ):
             with open(self.output_file, "w") as f:
                 f.write("")  # Create empty file
-            print(f"\nCleared selection analysis file: {self.output_file}")
+            self.logger(f"\nCleared selection analysis file: {self.output_file}")
+        # Initialize selection log for this period
+        self.selection_log = []
         # Initialize current_c_star for logging
         self.current_c_star = None
 
@@ -112,9 +152,9 @@ class SingleIndexModel:
                 or os.path.getsize(self.output_file) == 0
             )
             current_log.to_csv(self.output_file, mode="a", header=header, index=False)
-            print(f"\nSelection analysis appended to {self.output_file}")
-        except Exception as e:
-            print(f"Warning: Could not save selection analysis: {e}")
+            self.logger(f"\nSelection analysis appended to {self.output_file}")
+        except Exception:
+            pass
         # Clear selection_log after saving to avoid duplicate rows
         self.selection_log.clear()
 
@@ -127,7 +167,7 @@ class SingleIndexModel:
         Dict[str, Dict[str, float]]
             Dictionary of parameters for each security
         """
-        print("\nEstimating parameters for each security:")
+        self.logger("\nEstimating parameters for each security:")
 
         # Calculate market parameters safely
         if isinstance(self.market_returns.var(), pd.Series):
@@ -219,7 +259,7 @@ class SingleIndexModel:
                     }
                 )
             except Exception as e:
-                print(
+                self.logger(
                     f"[WARNING] Skipping security '{security}' in parameter estimation due to error: {e}"
                 )
 
@@ -267,11 +307,11 @@ class SingleIndexModel:
         M = market_variance
 
         # Print headers for the sorted table
-        print("-" * 100)
-        print(
+        self.logger("-" * 100)
+        self.logger(
             f"{'Security':<10} {'Beta':>10} {'Alpha':>10} {'Mean Ret':>10} {'Exc Ret':>10} {'Res Var':>10} {'ER/Beta':>10} {'C_i':>10} {'Selected':>10}"
         )
-        print("-" * 100)
+        self.logger("-" * 100)
 
         # Process securities in order of descending ER/Beta
         for security, _ in sorted_by_er_beta:
@@ -306,7 +346,7 @@ class SingleIndexModel:
             selected = "Yes" if er_beta > c_i else "No"
 
             # Print in sorted order with C_i and Selected columns
-            print(
+            self.logger(
                 f"{security:<10} {beta:>10.4f} {alpha:>10.4f} {mean_return:>10.4f} "
                 f"{excess_return:>10.4f} {residual_variance:>10.4f} {er_beta:>10.4f} "
                 f"{c_i:>10.4f} {selected:>10}"
@@ -321,7 +361,7 @@ class SingleIndexModel:
         # Store C_i values for later use
         self.c_values = c_values
 
-        print(
+        self.logger(
             f"\nEstimated parameters successfully for {len(self.parameters)} securities."
         )
         return self.parameters
@@ -337,9 +377,6 @@ class SingleIndexModel:
         """
         if not self.parameters:
             self.estimate_parameters()
-
-        print("\nCalculating optimal portfolio weights:")
-        print("-" * 80)
 
         # Calculate market parameters
         market_mean = float(
@@ -357,12 +394,11 @@ class SingleIndexModel:
         # Market parameters for reference
         market_excess_return = market_mean - daily_rf
 
-        print("Market Parameters:")
-        print(f"Market Mean Return: {market_mean:.6f}")
-        print(f"Market Variance: {market_variance:.6f}")
-        print(f"Daily Risk-Free Rate: {daily_rf:.6f}")
-        print(f"Market Excess Return: {market_excess_return:.6f}")
-        print("-" * 80)
+        self.logger("Market Parameters:")
+        self.logger(f"Market Mean Return: {market_mean:.6f}")
+        self.logger(f"Market Variance: {market_variance:.6f}")
+        self.logger(f"Daily Risk-Free Rate: {daily_rf:.6f}")
+        self.logger(f"Market Excess Return: {market_excess_return:.6f}")
 
         current_date = self.returns.index[-1]
 
@@ -454,9 +490,7 @@ class SingleIndexModel:
         # Final C* is the last C_i calculated after adding all selected securities
         c_star = sum_numerator / sum_denominator if sum_denominator > 0 else 0
 
-        # Print C* value
-        print(f"C* (Cut-off Rate): {c_star:.6f}")
-        print("-" * 120)
+        self.logger(f"C* (Cut-off Rate): {c_star:.6f}")
 
         # Calculate Z_i values and weights using the selected securities and found C*
         weights = {}
@@ -464,10 +498,9 @@ class SingleIndexModel:
         # Calculate Z_i values and weights
         # Z_i is ONLY calculated for securities where ER/Beta > C*
         # All other securities have Z_i = 0
-        print(
+        self.logger(
             f"{'Security':<10} {'ER/Beta':>10} {'C_i':>10} {'Z_i':>10} {'Weight':>10} {'Selected':>10}"
         )
-        print("-" * 120)
 
         for security in sorted_securities:
             params = self.parameters[security]
@@ -504,7 +537,7 @@ class SingleIndexModel:
             # Flag to show which securities were selected
             is_selected = "Yes" if security in selected_securities else "No"
 
-            print(
+            self.logger(
                 f"{security:<10} {er_beta:>10.4f} {c_i:>10.4f} {z_i:>10.4f} {weights[security]:>10.4f} {is_selected:>10}"
             )
 
@@ -530,15 +563,15 @@ class SingleIndexModel:
         total_weight = sum(weights.values())
         if total_weight > 0:
             weights = {k: v / total_weight for k, v in weights.items()}
-            print("\nFinal normalized weights:")
+            self.logger("\nFinal normalized weights:")
             for security, weight in weights.items():
-                print(f"{security:<10} {weight:>10.4f}")
+                self.logger(f"{security:<10} {weight:>10.4f}")
                 # Update selection log to mark selected securities (only X-items)
                 for entry in self.selection_log:
                     if entry["Security"] == security and entry["Date"] == current_date:
                         entry["Selected"] = True
         else:
-            print("\nFalling back to equal weights (X-items only)")
+            self.logger("\nFalling back to equal weights (X-items only)")
             # If all calculations fail, equal weight the X-items only
             n_securities = len(self.X_ITEMS)
             weight = 1.0 / n_securities
@@ -715,14 +748,14 @@ def example_usage():
     params = model.estimate_parameters()
 
     # Print parameters
-    print("Estimated Parameters:")
+    self.logger("Estimated Parameters:")
     for security, param in params.items():
-        print(f"{security}:")
-        print(f"  Alpha: {param['alpha']:.6f}")
-        print(f"  Beta: {param['beta']:.6f}")
-        print(f"  Residual Variance: {param['residual_variance']:.6f}")
-        print(f"  Excess Return / Beta: {param['excess_return_to_beta']:.6f}")
-        print()
+        self.logger(f"{security}:")
+        self.logger(f"  Alpha: {param['alpha']:.6f}")
+        self.logger(f"  Beta: {param['beta']:.6f}")
+        self.logger(f"  Residual Variance: {param['residual_variance']:.6f}")
+        self.logger(f"  Excess Return / Beta: {param['excess_return_to_beta']:.6f}")
+        self.logger()
 
     # Calculate optimal portfolio (long-only)
     weights = model.calculate_optimal_portfolio()
