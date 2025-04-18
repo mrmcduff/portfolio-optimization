@@ -15,6 +15,7 @@ dependencies = [
     "scipy",
     "matplotlib",
     "seaborn",
+    "openpyxl>=3.1.5",
 ]
 
 [project.optional-dependencies]
@@ -39,12 +40,15 @@ line_length = 88
 lint.select = ["E", "F", "B", "I"]
 lint.ignore = []
 
-# Same as Black
-line-length = 88
-
 # Allow autofix for all enabled rules (when `--fix`) is provided
 lint.fixable = ["ALL"]
 lint.unfixable = []
+
+# Allow unused variables when underscore-prefixed
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Same as Black
+line-length = 88
 
 # Exclude a variety of commonly ignored directories
 exclude = [
@@ -57,9 +61,6 @@ exclude = [
     "dist",
     "build",
 ]
-
-# Allow unused variables when underscore-prefixed
-lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 # Assume Python 3.8
 target-version = "py38"
@@ -78,3 +79,8 @@ known-first-party = ["portfolio_optimization"]
 # Configure line length as a warning through `extend-select` and `extend-ignore`
 extend-select = ["E501"]  # Explicitly select line length rule
 extend-ignore = ["E501"]  # But also ignore it as an error
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.6",
+]
