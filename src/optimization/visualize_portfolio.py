@@ -579,42 +579,55 @@ def main(
     benchmark_returns = pd.DataFrame()
     benchmark_metrics = {}
 
+    # Always include custom and fast algorithm portfolios
+    additional_benchmarks = {
+        "Custom Algorithm": os.path.join("results/models", "fa_portfolio_returns.csv"),
+        "Fast Algorithm": os.path.join("results/models", "ofa_portfolio_returns.csv"),
+    }
     if benchmark_files:
-        for name, file_path in benchmark_files.items():
-            try:
-                bench_data = pd.read_csv(file_path, index_col=0, parse_dates=True)
-                if name in bench_data.columns:
-                    benchmark_returns[name] = bench_data[name]
-                else:
-                    # Assume first column is the returns
-                    benchmark_returns[name] = bench_data.iloc[:, 0]
+        benchmark_files = {**benchmark_files, **additional_benchmarks}
+    else:
+        benchmark_files = additional_benchmarks
 
-                # Calculate benchmark metrics
-                bench_returns = benchmark_returns[name]
-                bench_ann_return = (1 + bench_returns.mean()) ** 252 - 1
-                bench_volatility = bench_returns.std() * np.sqrt(252)
-                bench_sharpe = (bench_ann_return - risk_free_rate) / bench_volatility
+    for name, file_path in benchmark_files.items():
+        try:
+            bench_data = pd.read_csv(file_path, index_col=0, parse_dates=True)
+            # Accept either Series or DataFrame
+            if isinstance(bench_data, pd.DataFrame) and name in bench_data.columns:
+                benchmark_returns[name] = bench_data[name]
+            else:
+                benchmark_returns[name] = (
+                    bench_data.iloc[:, 0]
+                    if isinstance(bench_data, pd.DataFrame)
+                    else bench_data
+                )
 
-                # Maximum drawdown
-                bench_cum_returns = (1 + bench_returns).cumprod()
-                bench_running_max = bench_cum_returns.cummax()
-                bench_drawdown = (bench_cum_returns / bench_running_max) - 1
-                bench_max_drawdown = bench_drawdown.min()
+            # Calculate benchmark metrics
+            bench_returns = benchmark_returns[name]
+            bench_ann_return = (1 + bench_returns.mean()) ** 252 - 1
+            bench_volatility = bench_returns.std() * np.sqrt(252)
+            bench_sharpe = (bench_ann_return - risk_free_rate) / bench_volatility
 
-                # Value at Risk (95%)
-                bench_var_95 = bench_returns.quantile(0.05)
+            # Maximum drawdown
+            bench_cum_returns = (1 + bench_returns).cumprod()
+            bench_running_max = bench_cum_returns.cummax()
+            bench_drawdown = (bench_cum_returns / bench_running_max) - 1
+            bench_max_drawdown = bench_drawdown.min()
 
-                benchmark_metrics[name] = {
-                    "annualized_return": bench_ann_return * 100,
-                    "annualized_volatility": bench_volatility * 100,
-                    "sharpe_ratio": bench_sharpe,
-                    "max_drawdown": bench_max_drawdown * 100,
-                    "var_95": bench_var_95 * 100,
-                }
+            # Value at Risk (95%)
+            bench_var_95 = bench_returns.quantile(0.05)
 
-                print(f"Loaded benchmark: {name}")
-            except Exception as e:
-                print(f"Error loading benchmark {name}: {e}")
+            benchmark_metrics[name] = {
+                "annualized_return": bench_ann_return * 100,
+                "annualized_volatility": bench_volatility * 100,
+                "sharpe_ratio": bench_sharpe,
+                "max_drawdown": bench_max_drawdown * 100,
+                "var_95": bench_var_95 * 100,
+            }
+
+            print(f"Loaded benchmark: {name}")
+        except Exception as e:
+            print(f"Error loading benchmark {name}: {e}")
 
     # 4. Plot benchmark comparison if benchmarks provided
     if not benchmark_returns.empty:

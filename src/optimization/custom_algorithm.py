@@ -755,11 +755,15 @@ def main(
             min_weight=min_weight,
         )
 
-        # Save rebalancing history
+        # Save rebalancing history (CSV, as before)
         rebalancing_df = pd.DataFrame(performance_metrics["rebalancing_history"])
         rebalancing_file = os.path.join(output_dir, "fa_rebalancing_history.csv")
         rebalancing_df.to_csv(rebalancing_file, index=False)
         print(f"Saved rebalancing history to {rebalancing_file}")
+        # Save as Excel for custom algorithm (for visualization)
+        rebalancing_xlsx = os.path.join(output_dir, "custom_algorithm_rebalancing.xlsx")
+        rebalancing_df.to_excel(rebalancing_xlsx, index=False)
+        print(f"Saved custom algorithm rebalancing log to {rebalancing_xlsx}")
     else:
         # Analyze historical performance
         portfolio_returns, performance_metrics = analyze_portfolio_performance(
