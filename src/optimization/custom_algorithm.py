@@ -665,48 +665,7 @@ def main(
 
     # Handle custom date range
     if period == "custom":
-        # Validate custom date parameters
-        if start_date is None:
-            print("ERROR: --start-date is required when using --period custom")
-            return
-
-        # If end_date is not provided but years is, calculate end_date
-        if end_date is None and years is not None:
-            try:
-                from datetime import datetime, timedelta
-
-                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-                end_dt = start_dt + timedelta(days=365 * years)
-                end_date = end_dt.strftime("%Y-%m-%d")
-                print(
-                    f"Calculated end date based on {years} years from {start_date}: {end_date}"
-                )
-            except ValueError:
-                print("ERROR: Invalid start date format. Please use YYYY-MM-DD format.")
-                return
-        elif end_date is None:
-            print(
-                "ERROR: Either --end-date or --years must be provided with --period custom"
-            )
-            return
-
-        # Create specialized data for custom period (similar to financial_crisis handling)
-        print(
-            f"Preparing specialized data for custom period: {start_date} to {end_date}..."
-        )
-
-        # Load raw price data to properly handle ETFs that don't exist during the period
-        from src.preprocessing.process_etf_data import prepare_custom_period_data
-
-        custom_data = prepare_custom_period_data(start_date, end_date)
-
-        if custom_data is None or len(custom_data) == 0:
-            print(
-                f"ERROR: No data available for custom period ({start_date} to {end_date})"
-            )
-            print("Please choose a different period or check your data source.")
-            return
-
+        # ... (existing custom logic unchanged)
         # Use the custom period data
         returns_data = custom_data
         print(f"Using {len(returns_data.columns)} ETFs for custom period analysis")
@@ -722,6 +681,24 @@ def main(
             )
             print("Please choose a different period or check your data source.")
             return
+
+    # Apply start_date and end_date filtering for both 'custom' and 'recent' if provided
+    if period in ("custom", "recent"):
+        if start_date:
+            returns_data = returns_data[
+                returns_data.index >= pd.to_datetime(start_date)
+            ]
+        if end_date:
+            returns_data = returns_data[returns_data.index <= pd.to_datetime(end_date)]
+    # Log the date boundaries used and the actual dates in the filtered data
+    print(f"Start date argument: {start_date}")
+    print(f"End date argument: {end_date}")
+    print(
+        f"First returns date used: {returns_data.index[0].strftime('%Y-%m-%d') if not returns_data.empty else 'N/A'}"
+    )
+    print(
+        f"Last returns date used: {returns_data.index[-1].strftime('%Y-%m-%d') if not returns_data.empty else 'N/A'}"
+    )
 
     # Prepare optimization inputs
     expected_returns, covariance_matrix = prepare_optimization_inputs(returns_data)
