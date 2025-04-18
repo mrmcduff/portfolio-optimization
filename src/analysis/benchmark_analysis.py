@@ -237,8 +237,8 @@ def plot_rolling_metrics(
     figures = []
 
     # Calculate rolling metrics
-    rolling_returns = returns.rolling(window=window).mean() * window
-    rolling_vol = returns.rolling(window=window).std() * np.sqrt(window)
+    rolling_returns = returns.rolling(window=window, min_periods=1).mean() * window
+    rolling_vol = returns.rolling(window=window, min_periods=1).std() * np.sqrt(window)
     rolling_sharpe = rolling_returns / rolling_vol
 
     # Plot rolling annualized returns
@@ -394,6 +394,109 @@ def analyze_drawdowns(
     return drawdown_df, plt.gcf()
 
 
+def format_table(data: pd.DataFrame, title: str) -> str:
+    """
+    Format a DataFrame as a markdown table with consistent column widths.
+
+    Parameters:
+    -----------
+    data : pd.DataFrame
+        Data to format as a table
+    title : str
+        Title for the table
+
+    Returns:
+    --------
+    str
+        Formatted markdown table
+    """
+    # Create a new DataFrame with string dtype for formatted values
+    formatted_data = pd.DataFrame(index=data.index, columns=data.columns, dtype=str)
+
+    # Define which metrics should be formatted as percentages
+    percentage_metrics = [
+        "Total Return",
+        "Annualized Return",
+        "Annualized Volatility",
+        "Sharpe Ratio",
+        "Jensen's Alpha",
+        "Beta",
+        "Max Drawdown",
+        "Value at Risk (95%)",
+        "Conditional VaR (95%)",
+        "Skewness",
+    ]
+
+    for col in data.columns:
+        for idx in data.index:
+            value = data.loc[idx, col]
+            if idx in percentage_metrics:
+                # Format as percentage with 2 decimal places
+                formatted_data.loc[idx, col] = f"{value:.2%}"
+            elif idx == "Kurtosis":
+                # Format kurtosis as float with 2 decimal places
+                formatted_data.loc[idx, col] = f"{value:.2f}"
+            else:
+                # Format other metrics as float with 2 decimal places
+                formatted_data.loc[idx, col] = f"{value:.2f}"
+
+    # Create markdown table
+    table = f"## {title}\n\n"
+
+    # Shorten column names
+    short_names = {
+        "S&P 500": "S&P 500",
+        "60/40 Portfolio": "60/40",
+        "Custom Algorithm": "Custom Algo",
+        "One Factor Fast Algorithm": "Fast Algo",
+        "Returns Algorithm": "Returns Algo",
+        "Weighted Top Five": "WTF",
+    }
+
+    # Apply shortened names to both columns and index if it's a correlation matrix
+    if "Return Correlations" in title:
+        formatted_data.columns = [
+            short_names.get(col, col) for col in formatted_data.columns
+        ]
+        formatted_data.index = [
+            short_names.get(idx, idx) for idx in formatted_data.index
+        ]
+    else:
+        formatted_data.columns = [
+            short_names.get(col, col) for col in formatted_data.columns
+        ]
+
+    # Header row with wider metric column
+    headers = ["Metric"] + list(formatted_data.columns)
+    table += (
+        "| "
+        + " | ".join(
+            f"{h:<21}" if i == 0 else f"{h:<12}" for i, h in enumerate(headers)
+        )
+        + " |\n"
+    )
+
+    # Separator row
+    table += (
+        "|:"
+        + ":|:".join("-" * 21 if i == 0 else "-" * 12 for i, _ in enumerate(headers))
+        + ":|\n"
+    )
+
+    # Data rows
+    for idx, row in formatted_data.iterrows():
+        values = [str(idx)] + [str(v) for v in row]
+        table += (
+            "| "
+            + " | ".join(
+                f"{v:<21}" if i == 0 else f"{v:<12}" for i, v in enumerate(values)
+            )
+            + " |\n"
+        )
+
+    return table + "\n"
+
+
 def create_summary_report(
     returns: pd.DataFrame, metrics: pd.DataFrame, output_file: Optional[str] = None
 ) -> str:
@@ -498,124 +601,116 @@ def create_summary_report(
 
 def main(
     return_files: List[str],
-    names: Optional[List[str]] = None,
-    risk_free_rate: float = 0.0,
-    output_dir: Optional[str] = None,
+    names: List[str],
+    risk_free_rate: float = 0.02,
+    output_dir: str = "results/analysis",
 ) -> None:
     """
-    Main function to analyze benchmark returns.
+    Run the benchmark analysis.
 
     Parameters:
     -----------
     return_files : List[str]
-        List of paths to CSV files containing return data
-    names : Optional[List[str]], optional
-        Names to use for each return series, by default None
+        List of paths to return files
+    names : List[str]
+        Names for each return series
     risk_free_rate : float, optional
-        Annualized risk-free rate, by default 0.0
-    output_dir : Optional[str], optional
-        Directory to save the output files, by default None
+        Risk-free rate (annualized), by default 0.02
+    output_dir : str, optional
+        Directory to save output files, by default "results/analysis"
     """
-    print("Analyzing benchmark returns")
-
-    # Create output directory if specified and doesn't exist
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-
-    # Load return data
+    # Load returns
     returns = load_return_files(return_files, names)
 
     # Calculate performance metrics
     metrics = calculate_performance_metrics(returns, risk_free_rate)
 
-    # Display metrics
-    print("\nPerformance Metrics:")
-    print(metrics)
+    # Calculate correlations
+    correlations = returns.corr()
 
-    # Save metrics to CSV if output_dir is provided
-    if output_dir:
-        metrics_file = os.path.join(output_dir, "benchmark_metrics.csv")
-        metrics.to_csv(metrics_file)
-        print(f"Saved performance metrics to {metrics_file}")
+    # Format tables
+    metrics_table = format_table(metrics, "Performance Metrics")
+    corr_table = format_table(correlations, "Return Correlations")
 
-    # Plot cumulative returns
-    if output_dir:
-        cumulative_file = os.path.join(output_dir, "cumulative_returns.png")
-        plot_cumulative_returns(returns, cumulative_file)
-    else:
-        plot_cumulative_returns(returns)
+    # Combine tables
+    summary = metrics_table + corr_table
 
-    # Plot rolling metrics
+    # Save summary
+    os.makedirs(output_dir, exist_ok=True)
+    summary_file = os.path.join(output_dir, "benchmark_analysis_summary.txt")
+    with open(summary_file, "w") as f:
+        f.write(summary)
+
+    # Print summary to console
+    print("\n=== Benchmark Analysis Summary ===\n")
+    print(summary)
+
+    # Generate plots
+    plot_cumulative_returns(returns, output_dir)
     plot_rolling_metrics(returns, window=252, output_dir=output_dir)
+    drawdowns, drawdown_plot = analyze_drawdowns(
+        returns, os.path.join(output_dir, "drawdowns.png")
+    )
 
-    # Analyze drawdowns
-    try:
-        if output_dir:
-            drawdown_file = os.path.join(output_dir, "drawdowns.png")
-            drawdown_stats, _ = analyze_drawdowns(returns, drawdown_file)
-        else:
-            drawdown_stats, _ = analyze_drawdowns(returns)
+    # Save drawdown analysis
+    drawdown_file = os.path.join(output_dir, "drawdown_analysis.csv")
+    drawdowns.to_csv(drawdown_file)
+    print(f"Drawdown analysis saved to {drawdown_file}")
 
-        # Print drawdown statistics
-        print("\nDrawdown Statistics:")
-        # Configure pandas to show all rows and columns
-        pd.set_option("display.max_rows", None)
-        pd.set_option("display.max_columns", None)
-        pd.set_option("display.width", 1000)  # Wider display to prevent line wrapping
-        print(drawdown_stats)
-    except Exception as e:
-        print(f"Warning: Error during drawdown analysis: {e}")
-        drawdown_stats = pd.DataFrame()
+    # Save metrics
+    metrics_file = os.path.join(output_dir, "performance_metrics.csv")
+    metrics.to_csv(metrics_file)
+    print(f"Performance metrics saved to {metrics_file}")
 
-    # Pandas display settings were already configured in the try block
-
-    # Create summary report
-    if output_dir:
-        report_file = os.path.join(output_dir, "benchmark_analysis.md")
-        create_summary_report(returns, metrics, report_file)
-    else:
-        report = create_summary_report(returns, metrics)
-        print("\nSummary Report:")
-        print(report)
-
-    print("\nBenchmark analysis complete")
+    print("\nBenchmark analysis completed successfully!")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Analyze benchmark returns")
+    parser = argparse.ArgumentParser(description="Run benchmark analysis")
     parser.add_argument(
         "--files",
-        "-f",
         nargs="+",
         required=True,
-        help="Paths to CSV files containing return data",
+        help="List of CSV files containing return data",
     )
     parser.add_argument(
         "--names",
-        "-n",
         nargs="+",
-        help="Names for each return series (must match number of files)",
+        help="Names to use for each return series (optional)",
     )
     parser.add_argument(
         "--risk-free-rate",
-        "-r",
         type=float,
-        default=0.0,
+        default=0.02,
         help="Annualized risk-free rate",
     )
-    parser.add_argument("--output", "-o", help="Directory to save output files")
+    parser.add_argument(
+        "--output",
+        help="Directory to save output files",
+    )
 
     args = parser.parse_args()
 
-    if args.names and len(args.names) != len(args.files):
-        print(
-            "Warning: Number of names does not match number of files. Using default names."
-        )
-        args.names = None
+    # Add default files if not provided
+    if not args.files:
+        args.files = [
+            "data/processed/spy_returns.csv",
+            "data/processed/balanced_returns.csv",
+            "results/models/fa_portfolio_returns.csv",
+            "results/models/one_factor_fast_algorithm_returns.csv",
+            "results/models/returns_algorithm_portfolio.csv",
+            "results/models/weighted_top_five_portfolio.csv",
+        ]
 
-    main(
-        args.files,
-        names=args.names,
-        risk_free_rate=args.risk_free_rate,
-        output_dir=args.output,
-    )
+    # Add default names if not provided
+    if not args.names:
+        args.names = [
+            "S&P 500",
+            "60/40",
+            "Custom Algorithm",
+            "One Factor Fast Algorithm",
+            "Returns Algorithm",
+            "Weighted Top Five",
+        ]
+
+    main(args.files, args.names, args.risk_free_rate, args.output)

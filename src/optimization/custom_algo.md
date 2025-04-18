@@ -1,10 +1,10 @@
-# Fast Algorithm for Portfolio Optimization
+# Custom Algorithm for Portfolio Optimization
 
-This document explains the Fast Algorithm implementation for portfolio optimization used in our system. The algorithm is based on Modern Portfolio Theory (MPT) and uses mathematical optimization techniques to find the optimal asset allocation.
+This document explains the Custom Algorithm implementation for portfolio optimization used in our system. The algorithm is based on Modern Portfolio Theory (MPT) and uses mathematical optimization techniques to find the optimal asset allocation.
 
 ## Overview
 
-The Fast Algorithm is designed to find the optimal portfolio allocation that maximizes the Sharpe ratio (risk-adjusted return) or achieves a target return with minimum risk. It uses quadratic programming techniques to solve the optimization problem.
+The Custom Algorithm is designed to find the optimal portfolio allocation that maximizes the Sharpe ratio (risk-adjusted return) or achieves a target return with minimum risk. It uses quadratic programming techniques to solve the optimization problem.
 
 ## Step-by-Step Process
 
@@ -12,7 +12,7 @@ The Fast Algorithm is designed to find the optimal portfolio allocation that max
 
 The process begins with historical price data for assets (in our case, sector ETFs):
 
-1. **Load Returns Data**: 
+1. **Load Returns Data**:
    - Load historical returns from CSV files
    - Special handling for specific periods (e.g., financial crisis period uses a specialized dataset that excludes ETFs that didn't exist during that time)
 
@@ -24,7 +24,7 @@ The process begins with historical price data for assets (in our case, sector ET
    ```python
    # Expected returns (annualized)
    expected_returns = returns.mean() * periods_per_year
-   
+
    # Covariance matrix (annualized)
    covariance_matrix = returns.cov() * periods_per_year
    ```
@@ -33,7 +33,7 @@ The process begins with historical price data for assets (in our case, sector ET
 
 ### 2. Portfolio Optimization
 
-The core optimization function (`fast_algorithm_portfolio`) implements the following steps:
+The core optimization function (`custom_algorithm_portfolio`) implements the following steps:
 
 1. **Define the Objective Function**:
    - If maximizing Sharpe ratio (default):
@@ -126,7 +126,7 @@ The algorithm accepts several parameters that affect the optimization:
 
 ## Mathematical Foundation
 
-The Fast Algorithm is based on Modern Portfolio Theory, which seeks to maximize expected return for a given level of risk, or minimize risk for a given level of expected return.
+The Custom Algorithm is based on Modern Portfolio Theory, which seeks to maximize expected return for a given level of risk, or minimize risk for a given level of expected return.
 
 The optimization problem can be formulated as:
 
@@ -160,4 +160,4 @@ Where:
 
 ## Conclusion
 
-The Fast Algorithm provides a robust method for portfolio optimization based on historical returns data. By adjusting the parameters, investors can tailor the optimization to their specific investment constraints and objectives.
+The Custom Algorithm provides a robust method for portfolio optimization based on historical returns data. By adjusting the parameters, investors can tailor the optimization to their specific investment constraints and objectives.
