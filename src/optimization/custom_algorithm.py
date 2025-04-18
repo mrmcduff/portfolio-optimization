@@ -15,6 +15,12 @@ from scipy.optimize import minimize
 
 # Import period configurations
 
+# Ensure Excel writer engine is available
+try:
+    import openpyxl  # noqa: F401
+except ImportError:
+    pass
+
 
 def load_returns(file_path: str) -> Optional[pd.DataFrame]:
     """
@@ -765,6 +771,10 @@ def main(
     weights_file = os.path.join(output_dir, "fa_optimal_weights.csv")
     optimal_weights.to_csv(weights_file)
     print(f"Saved optimal weights to {weights_file}")
+    # Also save as XLSX
+    weights_xlsx = os.path.join(output_dir, "fa_optimal_weights.xlsx")
+    optimal_weights.to_frame("weight").to_excel(weights_xlsx)
+    print(f"Saved optimal weights to {weights_xlsx}")
 
     # Save portfolio metrics
     metrics_df = pd.DataFrame(
@@ -780,11 +790,19 @@ def main(
     metrics_file = os.path.join(output_dir, "fa_portfolio_metrics.csv")
     metrics_df.to_csv(metrics_file, index=False)
     print(f"Saved portfolio metrics to {metrics_file}")
+    # Also save as XLSX
+    metrics_xlsx = os.path.join(output_dir, "fa_portfolio_metrics.xlsx")
+    metrics_df.to_excel(metrics_xlsx, index=False)
+    print(f"Saved portfolio metrics to {metrics_xlsx}")
 
     # Save portfolio returns
     returns_file = os.path.join(output_dir, "fa_portfolio_returns.csv")
     portfolio_returns.to_frame("portfolio_return").to_csv(returns_file)
     print(f"Saved portfolio returns to {returns_file}")
+    # Also save as XLSX
+    returns_xlsx = os.path.join(output_dir, "fa_portfolio_returns.xlsx")
+    portfolio_returns.to_frame("portfolio_return").to_excel(returns_xlsx)
+    print(f"Saved portfolio returns to {returns_xlsx}")
 
     # Save rolling annual returns for histogram
     rolling_returns_file = os.path.join(output_dir, "fa_rolling_annual_returns.csv")
@@ -792,6 +810,12 @@ def main(
         rolling_returns_file
     )
     print(f"Saved rolling annual returns to {rolling_returns_file}")
+    # Also save as XLSX
+    rolling_returns_xlsx = os.path.join(output_dir, "fa_rolling_annual_returns.xlsx")
+    performance_metrics["rolling_annual_returns"].to_frame("annual_return").to_excel(
+        rolling_returns_xlsx
+    )
+    print(f"Saved rolling annual returns to {rolling_returns_xlsx}")
 
     print("\nFast Algorithm optimization complete")
     print(f"Portfolio expected return: {portfolio_info['return']:.4%}")

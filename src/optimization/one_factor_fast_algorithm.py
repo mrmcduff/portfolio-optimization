@@ -19,6 +19,12 @@ import pandas as pd
 
 from src.optimization.fast_algorithm_selection import SingleIndexModel
 
+# Ensure Excel writer engine is available
+try:
+    import openpyxl  # noqa: F401
+except ImportError:
+    pass
+
 
 def load_returns(file_path: str) -> Optional[pd.DataFrame]:
     """
@@ -190,17 +196,27 @@ def analyze_portfolio_performance_with_rebalancing(
         os.path.join(output_dir, "ofa_portfolio_returns.csv"),
         header=["Return"],
     )
+    # Also save as XLSX
+    portfolio_returns.to_frame("Return").to_excel(
+        os.path.join(output_dir, "ofa_portfolio_returns.xlsx")
+    )
 
     # Save portfolio weights
     weights_df = pd.DataFrame.from_dict(portfolio_weights, orient="index")
     weights_df.to_csv(os.path.join(output_dir, "ofa_portfolio_weights.csv"))
+    # Also save as XLSX
+    weights_df.to_excel(os.path.join(output_dir, "ofa_portfolio_weights.xlsx"))
 
     # Save security betas
     security_betas.to_csv(os.path.join(output_dir, "ofa_security_betas.csv"))
+    # Also save as XLSX
+    security_betas.to_excel(os.path.join(output_dir, "ofa_security_betas.xlsx"))
 
     # Save period-by-period information
     period_df = pd.DataFrame(period_info)
     period_df.to_csv(os.path.join(output_dir, "ofa_period_analysis.csv"))
+    # Also save as XLSX
+    period_df.to_excel(os.path.join(output_dir, "ofa_period_analysis.xlsx"))
 
     print("Portfolio analysis completed successfully!")
 
