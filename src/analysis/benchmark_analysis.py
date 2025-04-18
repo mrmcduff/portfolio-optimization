@@ -6,12 +6,107 @@ of key performance metrics for comparison with optimized portfolios.
 """
 
 import argparse
+import ast
 import os
 from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+
+def plot_one_factor_fast_composition(output_dir: str):
+    """
+    Load one_factor_fast_rebalancing.xlsx and plot a normalized stacked area chart
+    showing the portfolio composition (weights) over time.
+    """
+    import os
+
+    rebal_path = os.path.join("results/models", "one_factor_fast_rebalancing.xlsx")
+    if not os.path.exists(rebal_path):
+        print(f"Rebalancing file not found: {rebal_path}")
+        return
+    df = pd.read_excel(rebal_path)
+
+    # Parse weights (stored as dicts in Excel)
+    if isinstance(df.loc[0, "weights"], str):
+        df["weights"] = df["weights"].apply(ast.literal_eval)
+
+    # Build a DataFrame: index=rebalancing date, columns=securities, values=weights
+    weight_records = []
+    for idx, row in df.iterrows():
+        date = pd.to_datetime(row["end_date"])  # Use end date for time axis
+        wdict = row["weights"]
+        for security, weight in wdict.items():
+            weight_records.append(
+                {"date": date, "security": security, "weight": weight}
+            )
+    weights_long = pd.DataFrame(weight_records)
+    weights_pivot = weights_long.pivot(
+        index="date", columns="security", values="weight"
+    ).fillna(0)
+    # Normalize (should sum to 1, but enforce)
+    weights_norm = weights_pivot.div(weights_pivot.sum(axis=1), axis=0)
+
+    # Plot
+    plt.figure(figsize=(14, 7))
+    weights_norm.plot.area(ax=plt.gca(), stacked=True, cmap="tab20")
+    plt.title("One-Factor Fast Algorithm Portfolio Composition Over Time")
+    plt.ylabel("Portfolio Weight")
+    plt.xlabel("Date")
+    plt.legend(loc="center left", bbox_to_anchor=(1.0, 0.5), title="Security")
+    plt.tight_layout()
+    outpath = os.path.join(output_dir, "one_factor_fast_composition.png")
+    plt.savefig(outpath, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved composition plot to {outpath}")
+
+
+def plot_custom_algorithm_composition(output_dir: str):
+    """
+    Load custom_algorithm_rebalancing.xlsx and plot a normalized stacked area chart
+    showing the portfolio composition (weights) over time.
+    """
+    import os
+
+    rebal_path = os.path.join("results/models", "custom_algorithm_rebalancing.xlsx")
+    if not os.path.exists(rebal_path):
+        print(f"Rebalancing file not found: {rebal_path}")
+        return
+    df = pd.read_excel(rebal_path)
+
+    # Parse weights (stored as dicts in Excel)
+    if isinstance(df.loc[0, "weights"], str):
+        df["weights"] = df["weights"].apply(ast.literal_eval)
+
+    # Build a DataFrame: index=rebalancing date, columns=securities, values=weights
+    weight_records = []
+    for idx, row in df.iterrows():
+        date = pd.to_datetime(row["date"])  # Use rebalancing date for time axis
+        wdict = row["weights"]
+        for security, weight in wdict.items():
+            weight_records.append(
+                {"date": date, "security": security, "weight": weight}
+            )
+    weights_long = pd.DataFrame(weight_records)
+    weights_pivot = weights_long.pivot(
+        index="date", columns="security", values="weight"
+    ).fillna(0)
+    # Normalize (should sum to 1, but enforce)
+    weights_norm = weights_pivot.div(weights_pivot.sum(axis=1), axis=0)
+
+    # Plot
+    plt.figure(figsize=(14, 7))
+    weights_norm.plot.area(ax=plt.gca(), stacked=True, cmap="tab20")
+    plt.title("Custom Algorithm Portfolio Composition Over Time")
+    plt.ylabel("Portfolio Weight")
+    plt.xlabel("Date")
+    plt.legend(loc="center left", bbox_to_anchor=(1.0, 0.5), title="Security")
+    plt.tight_layout()
+    outpath = os.path.join(output_dir, "custom_algorithm_composition.png")
+    plt.savefig(outpath, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved composition plot to {outpath}")
 
 
 def load_return_files(
@@ -663,6 +758,11 @@ def main(
     print(f"Performance metrics saved to {metrics_file}")
 
     print("\nBenchmark analysis completed successfully!")
+
+    # Plot normalized stacked area chart for fast algorithm composition
+    plot_one_factor_fast_composition(output_dir)
+    # Plot normalized stacked area chart for custom algorithm composition
+    plot_custom_algorithm_composition(output_dir)
 
 
 if __name__ == "__main__":

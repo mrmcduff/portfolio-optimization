@@ -132,14 +132,8 @@ def analyze_portfolio_performance_with_rebalancing(
             market_returns=market_returns.loc[lookback_start:start_rebal],
             risk_free_rate=risk_free_rate,
         )
-        # Print period dates
-        print(
-            f"\nPeriod: {start_rebal.strftime('%Y-%m-%d')} to {end_rebal.strftime('%Y-%m-%d')}"
-        )
-
         # Calculate optimal portfolio and get the selected weights
         current_weights = model.calculate_optimal_portfolio()
-        print(f"Current weights: {current_weights}")
 
         # Store weights for this period
         period_weights = current_weights.copy()  # Make a copy to avoid reference issues
@@ -217,6 +211,25 @@ def analyze_portfolio_performance_with_rebalancing(
     period_df.to_csv(os.path.join(output_dir, "ofa_period_analysis.csv"))
     # Also save as XLSX
     period_df.to_excel(os.path.join(output_dir, "ofa_period_analysis.xlsx"))
+
+    # Save rebalancing log as one_factor_fast_rebalancing.xlsx
+    rebal_log_cols = [
+        "start_date",
+        "end_date",
+        "selected_securities",
+        "weights",
+        "period_return",
+        "market_return",
+    ]
+    rebal_log_df = pd.DataFrame(
+        [
+            {k: v for k, v in period.items() if k in rebal_log_cols}
+            for period in period_info
+        ]
+    )
+    rebal_log_df.to_excel(
+        os.path.join(output_dir, "one_factor_fast_rebalancing.xlsx"), index=False
+    )
 
     print("Portfolio analysis completed successfully!")
 
