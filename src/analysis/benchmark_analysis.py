@@ -833,7 +833,7 @@ if __name__ == "__main__":
     if not args.files:
         args.files = [
             "data/processed/spy_returns.csv",
-            "data/processed/balanced_returns.csv",
+            "data/processed/balanced_returns_M_rebal.csv",
             "results/models/fa_portfolio_returns.csv",
             "results/models/one_factor_fast_algorithm_returns.csv",
             "results/models/returns_algorithm_portfolio.csv",
@@ -852,3 +852,64 @@ if __name__ == "__main__":
         ]
 
     main(args.files, args.names, args.risk_free_rate, args.output)
+
+
+def plot_balanced_monthly_composition():
+    """
+    Plot a normalized stacked area chart of SPY and BND weights over time
+    from the monthly rebalanced 60/40 portfolio (balanced_returns_M_rebal.csv).
+    Output is saved to results/models/balanced_monthly.png.
+    """
+    import os
+
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    # Path to processed CSV
+    inpath = os.path.join("data/processed", "balanced_returns_M_rebal.csv")
+    if not os.path.exists(inpath):
+        # Try the comparison subfolder
+        inpath = os.path.join(
+            "data/processed/comparison", "balanced_returns_M_rebal.csv"
+        )
+        if not os.path.exists(inpath):
+            print(f"Balanced returns file not found: {inpath}")
+            return
+    df = pd.read_csv(inpath, parse_dates=[0])
+    # Accept either 'date' or 'Date' as column name
+    date_col = "date" if "date" in df.columns else "Date"
+    df = df.set_index(date_col)
+    # Only keep the weight columns
+    if not ("weight_spy" in df.columns and "weight_bnd" in df.columns):
+        print("weight_spy and weight_bnd columns not found in the input CSV.")
+        return
+    weights = df[["weight_spy", "weight_bnd"]]
+    # Normalize just in case
+    weights_norm = weights.div(weights.sum(axis=1), axis=0)
+    # Plot
+    plt.figure(figsize=(14, 7))
+    # Explicit colors: SPY (dark blue), BND (light blue)
+    colors = ["#1f77b4", "#aec7e8"]  # matplotlib default blues
+    weights_norm.plot.area(ax=plt.gca(), stacked=True, color=colors)
+    plt.title("60/40 Portfolio (Monthly Rebalancing) Composition Over Time")
+    plt.ylabel("Portfolio Weight")
+    plt.xlabel("Date")
+    # Legend patches must match area colors
+    from matplotlib.patches import Patch
+
+    legend_patches = [
+        Patch(facecolor=colors[0], label="SPY"),
+        Patch(facecolor=colors[1], label="BND"),
+    ]
+    plt.legend(
+        handles=legend_patches,
+        loc="center left",
+        bbox_to_anchor=(1.0, 0.5),
+        title="Asset",
+    )
+    plt.tight_layout()
+    outpath = os.path.join("results/models", "balanced_monthly.png")
+    os.makedirs(os.path.dirname(outpath), exist_ok=True)
+    plt.savefig(outpath, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved composition plot to {outpath}")
