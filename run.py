@@ -184,6 +184,14 @@ def generate_benchmarks(args: argparse.Namespace) -> int:
     if hasattr(args, "threshold") and args.threshold:
         command.extend(["--threshold", str(args.threshold)])
 
+    # Pass period and date filters if provided
+    if hasattr(args, "period") and args.period:
+        command.extend(["--period", args.period])
+    if hasattr(args, "start_date") and args.start_date:
+        command.extend(["--start-date", args.start_date])
+    if hasattr(args, "end_date") and args.end_date:
+        command.extend(["--end-date", args.end_date])
+
     return run_command(command)
 
 

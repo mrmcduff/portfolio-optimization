@@ -12,6 +12,8 @@ from typing import Optional
 
 import pandas as pd
 
+from src.config.periods import get_period_range
+
 
 def load_returns_data(file_path: str) -> Optional[pd.DataFrame]:
     """
@@ -328,6 +330,9 @@ def main(
     rebalance_method: str = "periodic",
     rebalance_freq: str = "M",
     rebalance_threshold: float = 0.05,
+    period: str = None,
+    start_date: str = None,
+    end_date: str = None,
 ) -> None:
     """
     Main function to generate benchmark returns.
@@ -360,6 +365,33 @@ def main(
     returns_data = load_returns_data(returns_file)
     if returns_data is None:
         return
+
+    # Filter returns_data by period or start/end date if provided
+    if period and period != "custom":
+        if not start_date or not end_date:
+            try:
+                default_start, default_end = get_period_range(period)
+                if not start_date:
+                    start_date = default_start
+                if not end_date:
+                    end_date = default_end
+            except Exception as e:
+                print(f"Warning: Could not get period range for '{period}': {e}")
+    if period or start_date or end_date:
+        if start_date:
+            returns_data = returns_data[
+                returns_data.index >= pd.to_datetime(start_date)
+            ]
+        if end_date:
+            returns_data = returns_data[returns_data.index <= pd.to_datetime(end_date)]
+    # Print the start and end dates for the benchmark data
+    if not returns_data.empty:
+        print(
+            f"Benchmark data start date: {returns_data.index[0].strftime('%Y-%m-%d')}"
+        )
+        print(f"Benchmark data end date: {returns_data.index[-1].strftime('%Y-%m-%d')}")
+    else:
+        print("Benchmark data is empty!")
 
     # Create SPY benchmark
     try:
@@ -439,7 +471,25 @@ if __name__ == "__main__":
         default=0.6,
         help="Weight for stocks in balanced portfolio",
     )
-
+    parser.add_argument(
+        "--period",
+        "-p",
+        type=str,
+        default=None,
+        help="Period name to filter data (e.g., recent, financial_crisis, post_crisis)",
+    )
+    parser.add_argument(
+        "--start-date",
+        type=str,
+        default=None,
+        help="Start date to filter data (YYYY-MM-DD)",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        default=None,
+        help="End date to filter data (YYYY-MM-DD)",
+    )
     # Rebalancing options
     parser.add_argument(
         "--rebalance",
@@ -471,4 +521,7 @@ if __name__ == "__main__":
         rebalance_method=args.rebalance,
         rebalance_freq=args.frequency,
         rebalance_threshold=args.threshold,
+        period=args.period,
+        start_date=args.start_date,
+        end_date=args.end_date,
     )
