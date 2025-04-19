@@ -866,15 +866,10 @@ def plot_balanced_monthly_composition():
     import pandas as pd
 
     # Path to processed CSV
-    inpath = os.path.join("data/processed", "balanced_returns_M_rebal.csv")
+    inpath = os.path.join("results/models", "balanced_returns_M.csv")
     if not os.path.exists(inpath):
-        # Try the comparison subfolder
-        inpath = os.path.join(
-            "data/processed/comparison", "balanced_returns_M_rebal.csv"
-        )
-        if not os.path.exists(inpath):
-            print(f"Balanced returns file not found: {inpath}")
-            return
+        print(f"Balanced returns file not found: {inpath}")
+        return
     df = pd.read_csv(inpath, parse_dates=[0])
     # Accept either 'date' or 'Date' as column name
     date_col = "date" if "date" in df.columns else "Date"

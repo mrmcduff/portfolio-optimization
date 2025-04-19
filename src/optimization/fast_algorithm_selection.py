@@ -86,6 +86,12 @@ class SingleIndexModel:
         # Setup logger
         if logger is None:
             log_path = os.path.join(output_dir, "ofa_algorithm_log.txt")
+            # Delete log file at the start of each run to ensure a clean slate
+            if os.path.exists(log_path):
+                try:
+                    os.remove(log_path)
+                except Exception as e:
+                    print(f"Warning: Could not delete log file {log_path}: {e}")
 
             def default_logger(msg):
                 with open(log_path, "a") as f:
@@ -659,6 +665,17 @@ class SingleIndexModel:
         # Track C* for logging
         self.current_c_star = c_star
 
+        # Calculate Z_i for all securities (short sales allowed)
+        z_values = {}
+        for s in ranked_securities:
+            param = self.parameters[s]
+            z_i = (
+                (param["excess_return"] - c_star)
+                * param["beta"]
+                / param["residual_variance"]
+            )
+            z_values[s] = z_i
+
         if lintner_method:
             sum_abs_z = sum(abs(z) for z in z_values.values())
             weights = {security: z_i / sum_abs_z for security, z_i in z_values.items()}
@@ -671,9 +688,7 @@ class SingleIndexModel:
 
         # Calculate expected portfolio return and variance
         portfolio_return = sum(
-            weights[s] * self.returns[s].mean().iloc[0]
-            for s in self.X_ITEMS
-            if s in weights
+            weights[s] * self.returns[s].mean() for s in self.X_ITEMS if s in weights
         )
 
         # Calculate portfolio beta
@@ -723,17 +738,27 @@ def example_usage():
     # Generate random returns for SPY (market) and 5 securities
     market_returns = np.random.normal(0.001, 0.02, 30)  # Mean of 0.1%, std of 2%
 
-    # Generate correlated returns for securities
+    # Generate correlated returns for sector ETFs (X_ITEMS)
     securities_returns = {}
-    for i in range(1, 6):
-        # Generate returns with different betas and alphas
-        beta = 0.5 + i * 0.3  # Betas from 0.8 to 2.0
-        alpha = 0.0005 * (3 - i)  # Alphas from 0.001 to -0.001
-        idiosyncratic = np.random.normal(
-            0, 0.01 * i, 30
-        )  # Different idiosyncratic volatility
+    X_ITEMS = [
+        "XLB",
+        "XLC",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLRE",
+        "XLU",
+        "XLV",
+        "XLY",
+    ]
+    for i, ticker in enumerate(X_ITEMS):
+        beta = 0.8 + 0.1 * i  # Betas from 0.8 upwards
+        alpha = 0.0005 * (5 - i % 11)  # Some variation in alphas
+        idiosyncratic = np.random.normal(0, 0.01 * (1 + (i % 3)), 30)
         returns = alpha + beta * market_returns + idiosyncratic
-        securities_returns[f"Stock_{i}"] = returns
+        securities_returns[ticker] = returns
 
     # Create DataFrame
     securities_returns["SPY"] = market_returns
@@ -748,14 +773,14 @@ def example_usage():
     params = model.estimate_parameters()
 
     # Print parameters
-    self.logger("Estimated Parameters:")
+    model.logger("Estimated Parameters:")
     for security, param in params.items():
-        self.logger(f"{security}:")
-        self.logger(f"  Alpha: {param['alpha']:.6f}")
-        self.logger(f"  Beta: {param['beta']:.6f}")
-        self.logger(f"  Residual Variance: {param['residual_variance']:.6f}")
-        self.logger(f"  Excess Return / Beta: {param['excess_return_to_beta']:.6f}")
-        self.logger()
+        model.logger(f"{security}:")
+        model.logger(f"  Alpha: {param['alpha']:.6f}")
+        model.logger(f"  Beta: {param['beta']:.6f}")
+        model.logger(f"  Residual Variance: {param['residual_variance']:.6f}")
+        model.logger(f"  Excess Return / Beta: {param['excess_return_to_beta']:.6f}")
+        model.logger("")
 
     # Calculate optimal portfolio (long-only)
     weights = model.calculate_optimal_portfolio()

@@ -385,6 +385,11 @@ def main(
         spy_file = os.path.join(output_dir, "spy_returns.csv")
         spy_returns.to_frame("SPY").to_csv(spy_file)
         print(f"Saved SPY benchmark returns to {spy_file}")
+        # Also save to results/models
+        spy_models_file = os.path.join("results/models", "spy_returns.csv")
+        os.makedirs(os.path.dirname(spy_models_file), exist_ok=True)
+        spy_returns.to_frame("SPY").to_csv(spy_models_file)
+        print(f"Saved SPY benchmark returns to {spy_models_file}")
     except Exception as e:
         print(f"Error creating SPY benchmark: {e}")
 
@@ -432,6 +437,20 @@ def main(
         else:
             balanced_returns.to_frame("60/40").to_csv(balanced_file)
         print(f"Saved balanced portfolio returns to {balanced_file}")
+        # Also save to results/models if monthly rebalancing
+        if balanced_name == "balanced_returns_M_rebal":
+            balanced_models_file = os.path.join(
+                "results/models", "balanced_returns_M.csv"
+            )
+            os.makedirs(os.path.dirname(balanced_models_file), exist_ok=True)
+            if (
+                hasattr(balanced_returns, "columns")
+                and "return" in balanced_returns.columns
+            ):
+                balanced_returns.to_csv(balanced_models_file)
+            else:
+                balanced_returns.to_frame("60/40").to_csv(balanced_models_file)
+            print(f"Saved balanced portfolio returns to {balanced_models_file}")
 
         # Also save a copy as the default balanced_returns.csv for compatibility
         default_balanced_file = os.path.join(output_dir, "balanced_returns.csv")
