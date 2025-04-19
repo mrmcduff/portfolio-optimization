@@ -22,7 +22,7 @@ var/
 
 # Virtual Environment
 portfolio_env/
-venv/
+.venv/
 ENV/
 
 # Jupyter Notebook
