@@ -27,19 +27,7 @@ def plot_one_factor_fast_composition(output_dir: str):
         print(f"Rebalancing file not found: {rebal_path}")
         return
     df = pd.read_excel(rebal_path)
-    # Filter by start_date and end_date if provided in environment variables
-    import os
-
-    start_date_env = os.environ.get("BENCHMARK_START_DATE")
-    end_date_env = os.environ.get("BENCHMARK_END_DATE")
-    if start_date_env:
-        df = df[pd.to_datetime(df["date"]) >= pd.to_datetime(start_date_env)]
-    if end_date_env:
-        df = df[pd.to_datetime(df["date"]) <= pd.to_datetime(end_date_env)]
-
-    # Filter by start_date and end_date if provided in environment variables
-    import os
-
+    # Filter by start_date and end_date using 'end_date' column only (for consistency)
     start_date_env = os.environ.get("BENCHMARK_START_DATE")
     end_date_env = os.environ.get("BENCHMARK_END_DATE")
     if start_date_env:
@@ -81,7 +69,7 @@ def plot_one_factor_fast_composition(output_dir: str):
     print(f"Saved composition plot to {outpath}")
 
 
-def plot_custom_algorithm_composition(output_dir: str):
+def plot_custom_algorithm_composition(output_dir: str, period: str = None):
     """
     Load custom_algorithm_rebalancing.xlsx and plot a normalized stacked area chart
     showing the portfolio composition (weights) over time.
@@ -93,19 +81,7 @@ def plot_custom_algorithm_composition(output_dir: str):
         print(f"Rebalancing file not found: {rebal_path}")
         return
     df = pd.read_excel(rebal_path)
-    # Filter by start_date and end_date if provided in environment variables
-    import os
-
-    start_date_env = os.environ.get("BENCHMARK_START_DATE")
-    end_date_env = os.environ.get("BENCHMARK_END_DATE")
-    if start_date_env:
-        df = df[pd.to_datetime(df["date"]) >= pd.to_datetime(start_date_env)]
-    if end_date_env:
-        df = df[pd.to_datetime(df["date"]) <= pd.to_datetime(end_date_env)]
-
-    # Filter by start_date and end_date if provided in environment variables
-    import os
-
+    # Filter by start_date and end_date using 'end_date' column only (for consistency)
     start_date_env = os.environ.get("BENCHMARK_START_DATE")
     end_date_env = os.environ.get("BENCHMARK_END_DATE")
     if start_date_env:
@@ -527,6 +503,103 @@ def analyze_drawdowns(
     return drawdown_df, plt.gcf()
 
 
+# --- HISTOGRAM FUNCTION (must be defined before CLI block) ---
+def plot_histograms_of_annualized_returns():
+    """
+    Plot histograms of annualized returns per week for SPY, balanced, custom, and fast algorithms.
+    Save to results/figures as histogram_spy.png, histogram_balanced.png, histogram_custom.png, histogram_fast.png.
+    Print the file path used for each graph, and print mean/median annualized weekly return values.
+    """
+    import os
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+
+    FIGURES_DIR = "results/figures"
+    os.makedirs(FIGURES_DIR, exist_ok=True)
+
+    files = {
+        "SPY": "results/models/spy_returns.csv",
+        "Balanced": "results/models/balanced_returns_M.csv",
+        "Custom": "results/models/fa_portfolio_returns.csv",
+        "Fast": "results/models/ofa_portfolio_returns.csv",
+    }
+    outnames = {
+        "SPY": "histogram_spy.png",
+        "Balanced": "histogram_balanced.png",
+        "Custom": "histogram_custom.png",
+        "Fast": "histogram_fast.png",
+    }
+    for label, fpath in files.items():
+        print(f"Loading data for {label} from: {fpath}")
+        import os
+
+        base, ext = os.path.splitext(fpath)
+        df = pd.read_csv(fpath, index_col=0, parse_dates=True)
+        # Use first column if multi-column
+        if df.shape[1] > 1:
+            series = df.iloc[:, 0]
+        else:
+            series = df.squeeze()
+        trailing_windows = {"daily": 252, "weekly": 52, "monthly": 12}
+        resample_rules = {"daily": None, "weekly": "W", "monthly": "M"}
+        for freq, window in trailing_windows.items():
+            if freq == "daily":
+                returns = series
+            else:
+                returns = (1 + series).resample(resample_rules[freq]).prod() - 1
+            trailing = (1 + returns).rolling(window).apply(np.prod, raw=True) - 1
+            trailing = trailing.dropna()
+            # Save trailing returns to CSV
+            trailing_csv = base + f"_trailing_1yr_{freq}.csv"
+            trailing.to_csv(trailing_csv)
+            print(f"Saved trailing 1-year {freq} returns to {trailing_csv}")
+            # Plot histogram
+            plt.figure(figsize=(8, 5))
+            plt.hist(
+                trailing,
+                bins=20,
+                color="#1f77b4",
+                alpha=0.7,
+                label="Trailing 1Y Returns",
+            )
+            mean_val = trailing.mean()
+            median_val = trailing.median()
+            plt.axvline(
+                mean_val,
+                color="red",
+                linestyle="--",
+                linewidth=2,
+                label=f"Mean: {mean_val:.2%}",
+            )
+            plt.axvline(
+                median_val,
+                color="green",
+                linestyle=":",
+                linewidth=2,
+                label=f"Median: {median_val:.2%}",
+            )
+            plt.title(f"Histogram of 1-Year Trailing Returns ({freq.title()}): {label}")
+            plt.xlabel("1-Year Trailing Return")
+            plt.ylabel("Frequency")
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.tight_layout()
+            fig_out = os.path.join(
+                FIGURES_DIR, f"histogram_{label.lower()}_trailing_1yr_{freq}.png"
+            )
+            plt.savefig(fig_out, dpi=300, bbox_inches="tight")
+            plt.close()
+            print(f"Saved histogram to {fig_out}")
+
+        outpath = os.path.join(FIGURES_DIR, outnames[label])
+        plt.tight_layout()
+        plt.savefig(outpath, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"Saved histogram to {outpath}")
+
+
 def format_table(data: pd.DataFrame, title: str) -> str:
     """
     Format a DataFrame as a markdown table with consistent column widths.
@@ -826,14 +899,21 @@ if __name__ == "__main__":
         "--output",
         help="Directory to save output files",
     )
+    parser.add_argument(
+        "--period",
+        "-p",
+        type=str,
+        default=None,
+        help="Period name to filter data (e.g., recent, financial_crisis, post_crisis)",
+    )
 
     args = parser.parse_args()
 
     # Add default files if not provided
     if not args.files:
         args.files = [
-            "data/processed/spy_returns.csv",
-            "data/processed/balanced_returns_M_rebal.csv",
+            "results/models/spy_returns.csv",
+            "results/models/balanced_returns_M.csv",
             "results/models/fa_portfolio_returns.csv",
             "results/models/one_factor_fast_algorithm_returns.csv",
             "results/models/returns_algorithm_portfolio.csv",
@@ -851,7 +931,31 @@ if __name__ == "__main__":
             "Weighted Top Five",
         ]
 
-    main(args.files, args.names, args.risk_free_rate, args.output)
+    # Print out the file paths here
+    print("Files used for graph generation:")
+    for f in args.files:
+        print(f"  {f}")
+
+    # Pass the period argument to the plot_custom_algorithm_composition function
+    # Ensure output_dir is set
+    output_dir = args.output or "results/analysis"
+    main(args.files, args.names, args.risk_free_rate, output_dir)
+    # After main, you may want to run the composition plot with the period
+    # (Assuming output_dir is args.output or default)
+    plot_custom_algorithm_composition(output_dir, args.period)
+
+    # Run returns_sharpe_comparison.py to generate returns and Sharpe ratio graphs
+    import subprocess
+    import sys
+
+    script_path = os.path.join(
+        os.path.dirname(__file__), "returns_sharpe_comparison.py"
+    )
+    print("\nRunning returns_sharpe_comparison.py to generate comparison graphs...")
+    subprocess.run([sys.executable, script_path], check=True)
+
+    # Plot histograms of annualized returns per month for each algorithm
+    plot_histograms_of_annualized_returns()
 
 
 def plot_balanced_monthly_composition():
@@ -866,15 +970,10 @@ def plot_balanced_monthly_composition():
     import pandas as pd
 
     # Path to processed CSV
-    inpath = os.path.join("data/processed", "balanced_returns_M_rebal.csv")
+    inpath = os.path.join("results/models", "balanced_returns_M.csv")
     if not os.path.exists(inpath):
-        # Try the comparison subfolder
-        inpath = os.path.join(
-            "data/processed/comparison", "balanced_returns_M_rebal.csv"
-        )
-        if not os.path.exists(inpath):
-            print(f"Balanced returns file not found: {inpath}")
-            return
+        print(f"Balanced returns file not found: {inpath}")
+        return
     df = pd.read_csv(inpath, parse_dates=[0])
     # Accept either 'date' or 'Date' as column name
     date_col = "date" if "date" in df.columns else "Date"
