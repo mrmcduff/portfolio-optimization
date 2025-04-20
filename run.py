@@ -250,8 +250,7 @@ def optimize(args: argparse.Namespace) -> int:
         command.append("--allow-short")
 
     # Add Custom Algorithm rebalancing parameters
-    if hasattr(args, "rebalance_portfolio") and args.rebalance_portfolio:
-        command.append("--rebalance-portfolio")
+    # Removed --rebalance-portfolio, only using --rebalance-frequency now.
     if hasattr(args, "rebalance_frequency") and args.rebalance_frequency:
         command.extend(["--rebalance-frequency", args.rebalance_frequency])
     if hasattr(args, "estimation_window") and args.estimation_window:
@@ -481,7 +480,7 @@ def run_returns_algorithm(args: argparse.Namespace) -> int:
 
     # Add optional parameters if provided
     if hasattr(args, "rebalance_frequency") and args.rebalance_frequency:
-        command.extend(["--rebalance", args.rebalance_frequency])
+        command.extend(["--rebalance-frequency", args.rebalance_frequency])
     if hasattr(args, "lookback_window") and args.lookback_window:
         command.extend(["--lookback", str(args.lookback_window)])
     if hasattr(args, "max_weight") and args.max_weight:
@@ -524,7 +523,7 @@ def run_weighted_top_five(args: argparse.Namespace) -> int:
 
     # Add optional parameters if provided
     if hasattr(args, "rebalance_frequency") and args.rebalance_frequency:
-        command.extend(["--rebalance", args.rebalance_frequency])
+        command.extend(["--rebalance-frequency", args.rebalance_frequency])
     if hasattr(args, "lookback_window") and args.lookback_window:
         command.extend(["--lookback", str(args.lookback_window)])
 
@@ -751,13 +750,10 @@ def main() -> int:
         "--allow-short", action="store_true", help="Allow short selling (not long-only)"
     )
     # Add rebalancing options for Custom Algorithm
-    optimize_parser.add_argument(
-        "--rebalance-portfolio",
-        action="store_true",
-        help="Enable periodic rebalancing for the Custom Algorithm portfolio",
-    )
+
     optimize_parser.add_argument(
         "--rebalance-frequency",
+        "-f",
         choices=["D", "W", "M", "Q", "A"],
         default="Q",
         help="Frequency for portfolio rebalancing (default: Q for quarterly)",
@@ -910,6 +906,7 @@ def main() -> int:
     )
     returns_parser.add_argument(
         "--rebalance-frequency",
+        "-f",
         choices=["D", "W", "M", "Q", "A"],
         default="Q",
         help="Rebalancing frequency (default: Q for quarterly)",
@@ -948,13 +945,10 @@ def main() -> int:
         help="Risk-free rate (annualized) (default: 0.02)",
     )
     # Add rebalancing options for the all command
-    all_parser.add_argument(
-        "--rebalance-portfolio",
-        action="store_true",
-        help="Enable periodic rebalancing for the Custom Algorithm portfolio",
-    )
+
     all_parser.add_argument(
         "--rebalance-frequency",
+        "-f",
         choices=["D", "W", "M", "Q", "A"],
         default="Q",
         help="Frequency for portfolio rebalancing (default: Q for quarterly)",
