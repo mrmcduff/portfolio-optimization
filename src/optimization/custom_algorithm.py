@@ -550,40 +550,13 @@ def analyze_portfolio_performance_with_rebalancing(
             "No portfolio returns were calculated. Check your data and rebalancing settings."
         )
 
-    # Calculate performance metrics
-    cumulative_return = (1 + portfolio_returns).prod() - 1
-    annualized_return = (1 + portfolio_returns.mean()) ** 252 - 1
-    annualized_volatility = portfolio_returns.std() * np.sqrt(252)
-    sharpe_ratio = (annualized_return - risk_free_rate) / annualized_volatility
+    # Calculate performance metrics using utility function
+    from .utils import calculate_performance_metrics
 
-    # Maximum drawdown
-    cumulative_returns = (1 + portfolio_returns).cumprod()
-    running_max = cumulative_returns.cummax()
-    drawdown = (cumulative_returns / running_max) - 1
-    max_drawdown = drawdown.min()
-
-    # Value at Risk (95%)
-    var_95 = portfolio_returns.quantile(0.05)
-
-    # Conditional VaR (95%)
-    cvar_95 = portfolio_returns[portfolio_returns <= var_95].mean()
-
-    # Calculate rolling annual returns
-    rolling_annual_returns = portfolio_returns.rolling(window=252).apply(
-        lambda x: (1 + x).prod() - 1
+    performance_metrics = calculate_performance_metrics(
+        portfolio_returns, risk_free_rate
     )
-
-    performance_metrics = {
-        "cumulative_return": cumulative_return,
-        "annualized_return": annualized_return,
-        "annualized_volatility": annualized_volatility,
-        "sharpe_ratio": sharpe_ratio,
-        "max_drawdown": max_drawdown,
-        "var_95": var_95,
-        "cvar_95": cvar_95,
-        "rolling_annual_returns": rolling_annual_returns,
-        "rebalancing_history": rebalancing_history,
-    }
+    performance_metrics["rebalancing_history"] = rebalancing_history
 
     print(
         f"Portfolio performance analysis completed with {len(rebalancing_history)} rebalancing events"
