@@ -57,7 +57,13 @@ def plot_one_factor_fast_composition(output_dir: str):
 
     # Plot
     plt.figure(figsize=(14, 7))
-    weights_norm.plot.area(ax=plt.gca(), stacked=True, cmap="tab20")
+    if (weights_norm < 0).any().any():
+        print(
+            "Negative weights detected: plotting as line chart (not stacked area) due to short sales."
+        )
+        weights_norm.plot(ax=plt.gca(), cmap="tab20")
+    else:
+        weights_norm.plot.area(ax=plt.gca(), stacked=True, cmap="tab20")
     plt.title("One-Factor Fast Algorithm Portfolio Composition Over Time")
     plt.ylabel("Portfolio Weight")
     plt.xlabel("Date")
@@ -111,7 +117,13 @@ def plot_custom_algorithm_composition(output_dir: str, period: str = None):
 
     # Plot
     plt.figure(figsize=(14, 7))
-    weights_norm.plot.area(ax=plt.gca(), stacked=True, cmap="tab20")
+    if (weights_norm < 0).any().any():
+        print(
+            "Negative weights detected: plotting as line chart (not stacked area) due to short sales."
+        )
+        weights_norm.plot(ax=plt.gca(), cmap="tab20")
+    else:
+        weights_norm.plot.area(ax=plt.gca(), stacked=True, cmap="tab20")
     plt.title("Custom Algorithm Portfolio Composition Over Time")
     plt.ylabel("Portfolio Weight")
     plt.xlabel("Date")
