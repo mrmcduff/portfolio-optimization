@@ -869,6 +869,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--rebalance-frequency",
+        "-f",
         choices=["D", "W", "M", "Q", "A"],
         default="Q",
         help="Frequency for portfolio rebalancing (if enabled)",

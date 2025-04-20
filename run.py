@@ -753,6 +753,7 @@ def main() -> int:
 
     optimize_parser.add_argument(
         "--rebalance-frequency",
+        "-f",
         choices=["D", "W", "M", "Q", "A"],
         default="Q",
         help="Frequency for portfolio rebalancing (default: Q for quarterly)",
@@ -905,6 +906,7 @@ def main() -> int:
     )
     returns_parser.add_argument(
         "--rebalance-frequency",
+        "-f",
         choices=["D", "W", "M", "Q", "A"],
         default="Q",
         help="Rebalancing frequency (default: Q for quarterly)",
@@ -946,6 +948,7 @@ def main() -> int:
 
     all_parser.add_argument(
         "--rebalance-frequency",
+        "-f",
         choices=["D", "W", "M", "Q", "A"],
         default="Q",
         help="Frequency for portfolio rebalancing (default: Q for quarterly)",
