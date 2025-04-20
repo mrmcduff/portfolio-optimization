@@ -126,6 +126,9 @@ def analyze_portfolio_performance_with_rebalancing(
 
         # Get lookback data for parameter estimation
         lookback_start = start_rebal - pd.Timedelta(days=lookback_window)
+        print(
+            f"Rebalance on {start_rebal.date()}: using lookback window from {lookback_start.date()} to {start_rebal.date()} ({lookback_window} days)"
+        )
         lookback_data = returns_data.loc[lookback_start:start_rebal]
 
         # Initialize and run the model
