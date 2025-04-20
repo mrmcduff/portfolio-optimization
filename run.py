@@ -626,6 +626,13 @@ def run_all(args: argparse.Namespace) -> int:
     if analyze(analysis_args) != 0:
         return 1
 
+    # Generate histograms of annualized returns
+    print("\n=== Generating Histograms of Annualized Returns ===\n")
+    from src.analysis import benchmark_analysis
+
+    debug = getattr(args, "debug", False)
+    benchmark_analysis.plot_histograms_of_annualized_returns(verbose=debug)
+
     return 0
 
 
@@ -850,9 +857,18 @@ def main() -> int:
     )
 
     # Analyze command
-    analyze_parser = subparsers.add_parser("analyze", help="Run benchmark analysis")
+    analyze_parser = subparsers.add_parser(
+        "analyze", help="Run benchmark analysis on portfolio returns"
+    )
     analyze_parser.add_argument(
-        "--files", "-f", nargs="+", help="Paths to CSV files containing return data"
+        "--debug",
+        action="store_true",
+        help="Enable debug/noisy output for additional logging.",
+    )
+    analyze_parser.add_argument(
+        "--files",
+        nargs="*",
+        help="List of return files to analyze (CSV)",
     )
     analyze_parser.add_argument(
         "--names", "-n", nargs="+", help="Names for each return series"
@@ -926,6 +942,12 @@ def main() -> int:
 
     # Run all command
     all_parser = subparsers.add_parser("all", help="Run all steps in sequence")
+    # Add debug flag
+    all_parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug/noisy output for additional logging.",
+    )
     # We'll use the same arguments for each step when running all
     all_parser.add_argument(
         "--input", "-i", help=f"Input data file (default: {DEFAULT_PATHS['raw_data']})"

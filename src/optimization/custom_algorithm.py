@@ -492,12 +492,15 @@ def analyze_portfolio_performance_with_rebalancing(
                 -min(lookback_window, len(returns_data.index)) :
             ][0]
 
+            print(
+                f"Rebalance on {current_date.date()}: using lookback window from {lookback_start.date()} to {lookback_end.date()} ({lookback_window} days)"
+            )
+
             # Filter data for the lookback period
             lookback_data = returns_data.loc[lookback_start:lookback_end]
 
             # Prepare optimization inputs
             expected_returns, cov_matrix = prepare_optimization_inputs(lookback_data)
-
             # Run optimization
             try:
                 optimal_weights, _ = optimization_function(

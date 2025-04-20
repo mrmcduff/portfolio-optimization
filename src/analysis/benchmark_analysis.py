@@ -504,7 +504,7 @@ def analyze_drawdowns(
 
 
 # --- HISTOGRAM FUNCTION (must be defined before CLI block) ---
-def plot_histograms_of_annualized_returns():
+def plot_histograms_of_annualized_returns(verbose: bool = False):
     """
     Plot histograms of annualized returns per week for SPY, balanced, custom, and fast algorithms.
     Save to results/figures as histogram_spy.png, histogram_balanced.png, histogram_custom.png, histogram_fast.png.
@@ -543,7 +543,7 @@ def plot_histograms_of_annualized_returns():
         else:
             series = df.squeeze()
         trailing_windows = {"daily": 252, "weekly": 52, "monthly": 12}
-        resample_rules = {"daily": None, "weekly": "W", "monthly": "M"}
+        resample_rules = {"daily": None, "weekly": "W", "monthly": "ME"}
         for freq, window in trailing_windows.items():
             if freq == "daily":
                 returns = series
@@ -555,6 +555,9 @@ def plot_histograms_of_annualized_returns():
             trailing_csv = base + f"_trailing_1yr_{freq}.csv"
             trailing.to_csv(trailing_csv)
             print(f"Saved trailing 1-year {freq} returns to {trailing_csv}")
+            # Print number of points to be plotted if verbose
+            if verbose:
+                print(f"Plotting {label} ({freq}): {len(trailing)} data points.")
             # Plot histogram
             plt.figure(figsize=(8, 5))
             plt.hist(
