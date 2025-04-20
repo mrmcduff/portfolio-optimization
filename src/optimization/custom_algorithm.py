@@ -866,11 +866,7 @@ if __name__ == "__main__":
     )
 
     # Add rebalancing arguments
-    parser.add_argument(
-        "--rebalance-portfolio",
-        action="store_true",
-        help="Enable periodic rebalancing of the optimized portfolio",
-    )
+
     parser.add_argument(
         "--rebalance-frequency",
         choices=["D", "W", "M", "Q", "A"],
@@ -885,6 +881,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    rebalance_portfolio = True if args.rebalance_frequency is not None else False
     main(
         args.data,
         args.output,
@@ -893,7 +890,7 @@ if __name__ == "__main__":
         long_only=not args.allow_short,
         max_weight=args.max_weight,
         min_weight=args.min_weight,
-        rebalance=args.rebalance_portfolio,
+        rebalance=rebalance_portfolio,
         rebalance_frequency=args.rebalance_frequency,
         lookback_window=args.estimation_window,
         start_date=args.start_date,
