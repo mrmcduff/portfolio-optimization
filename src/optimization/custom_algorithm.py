@@ -416,6 +416,9 @@ def analyze_portfolio_performance_with_rebalancing(
     max_weight: Optional[float] = 0.25,
     min_weight: Optional[float] = 0.01,
     long_only: bool = True,
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    verbose: bool = False,
 ) -> Tuple[pd.Series, Dict[str, Any]]:
     """
     Analyze historical performance of a portfolio with periodic rebalancing.
@@ -429,7 +432,7 @@ def analyze_portfolio_performance_with_rebalancing(
     rebalance_frequency : str, optional
         Frequency of rebalancing, by default 'Q' (quarterly)
     lookback_window : int, optional
-        Number of trading days to use for parameter estimation, by default 252 (1 year)
+        Number of trading days to use for parameter estimation, by default 252
     risk_free_rate : float, optional
         Risk-free rate (annualized), by default 0.02
     max_weight : Optional[float], optional
@@ -438,6 +441,12 @@ def analyze_portfolio_performance_with_rebalancing(
         Minimum weight for any asset if included, by default 0.01
     long_only : bool, optional
         Whether to enforce long-only constraint, by default True
+    period : Optional[str], optional
+        Period to analyze, by default None
+    start_date : Optional[str], optional
+        Start date for custom period, by default None
+    verbose : bool, optional
+        Whether to print debug messages, by default False
 
     Returns:
     --------
@@ -457,23 +466,42 @@ def analyze_portfolio_performance_with_rebalancing(
     }
     rebal_freq = freq_map.get(rebalance_frequency, rebalance_frequency)
 
-    # Generate rebalancing dates
+    # Define periods dictionary locally (matches main)
+    periods: Dict[str, Tuple[str, str]] = {
+        "financial_crisis": ("2008-01-02", "2013-01-02"),
+        "post_crisis": ("2012-01-01", "2018-12-31"),
+        "recent": ("2019-01-01", "2023-12-31"),
+    }
+
+    # Determine the true portfolio start date (after trailing data is included)
+    if period and period in periods:
+        intended_start = pd.to_datetime(periods[period][0])
+    elif start_date:
+        intended_start = pd.to_datetime(start_date)
+    else:
+        intended_start = returns_data.index[0]
+    # Find the first available date >= intended_start
+    portfolio_start_date = returns_data.index[returns_data.index >= intended_start][0]
+
+    # When generating rebalancing dates, only include those on or after the portfolio start date
     rebal_dates = pd.date_range(
-        start=returns_data.index.min(), end=returns_data.index.max(), freq=rebal_freq
+        start=portfolio_start_date, end=returns_data.index.max(), freq=rebal_freq
     )
 
-    # Add first date if not already present
-    if returns_data.index[0] not in rebal_dates:
-        rebal_dates = rebal_dates.insert(0, returns_data.index[0])
+    # If the portfolio_start_date is not in rebal_dates, insert it
+    if portfolio_start_date not in rebal_dates:
+        rebal_dates = rebal_dates.insert(0, portfolio_start_date)
 
     # Initialize tracking variables
     portfolio_returns = pd.Series(index=returns_data.index)
     current_weights = None
     rebalancing_history = []
 
-    # Iterate through each period between rebalancing dates
+    # Only process rebalancing periods where current_date >= portfolio_start_date
     for i in range(len(rebal_dates) - 1):
         current_date = rebal_dates[i]
+        if current_date < portfolio_start_date:
+            continue
         next_rebal_date = rebal_dates[i + 1]
 
         # Get dates in the current period
@@ -489,19 +517,56 @@ def analyze_portfolio_performance_with_rebalancing(
         if current_weights is None or current_date in rebal_dates:
             # Determine lookback window for parameter estimation
             lookback_end = current_date
-            lookback_start = returns_data.index[returns_data.index <= lookback_end][
-                -min(lookback_window, len(returns_data.index)) :
-            ][0]
-
-            print(
-                f"Rebalance on {current_date.date()}: using lookback window from {lookback_start.date()} to {lookback_end.date()} ({lookback_window} days)"
-            )
+            # Align lookback_end to the closest previous available date in the index
+            if lookback_end not in returns_data.index:
+                lookback_end = returns_data.index[returns_data.index <= lookback_end][
+                    -1
+                ]
+            # Find the index of lookback_end in returns_data
+            end_idx = returns_data.index.get_loc(lookback_end)
+            # Compute start index for lookback window (handle case where not enough data)
+            lookback_len = min(lookback_window, end_idx + 1)
+            lookback_start = returns_data.index[end_idx - lookback_len + 1]
 
             # Filter data for the lookback period
             lookback_data = returns_data.loc[lookback_start:lookback_end]
+            if verbose:
+                print(
+                    f"[DEBUG] Lookback data shape: {lookback_data.shape}, Dates: {lookback_data.index[0].date()} to {lookback_data.index[-1].date()}"
+                )
+                print(
+                    f"[DEBUG] First few rows of lookback data:\n{lookback_data.head()}"
+                )
+
+            # Accurate logging: always report actual lookback length
+            if verbose:
+                print(
+                    f"[DEBUG] Rebalance on {current_date.date()}: using lookback window from {lookback_start.date()} to {lookback_end.date()} (length: {lookback_data.shape[0]} days)"
+                )
+
+            # Exclude any securities with missing values in the lookback window
+            valid_securities = lookback_data.columns[lookback_data.notna().all(axis=0)]
+            lookback_data_valid = lookback_data[valid_securities]
+            dropped = set(lookback_data.columns) - set(valid_securities)
+            if len(valid_securities) < lookback_data.shape[1]:
+                if verbose:
+                    print(
+                        f"[DEBUG] Excluding securities with incomplete data for this lookback window: {dropped}"
+                    )
+            if lookback_data_valid.shape[1] == 0:
+                print(
+                    f"[ERROR] No securities with complete data for lookback window ending {lookback_end.date()}. Skipping rebalance."
+                )
+                continue
 
             # Prepare optimization inputs
-            expected_returns, cov_matrix = prepare_optimization_inputs(lookback_data)
+            expected_returns, cov_matrix = prepare_optimization_inputs(
+                lookback_data_valid
+            )
+            if verbose:
+                print(f"[DEBUG] Expected returns:\n{expected_returns}")
+                print(f"[DEBUG] Covariance matrix:\n{cov_matrix}")
+
             # Run optimization
             try:
                 optimal_weights, _ = optimization_function(
@@ -519,15 +584,15 @@ def analyze_portfolio_performance_with_rebalancing(
                     {"date": current_date, "weights": current_weights.to_dict()}
                 )
 
-                print(f"Rebalanced portfolio on {current_date.date()}")
+                print(
+                    f"Rebalanced portfolio on {current_date.date()}"
+                    + (f" [dropped: {dropped}]" if dropped else "")
+                )
             except Exception as e:
                 print(f"Optimization failed for date {current_date.date()}: {e}")
-                if current_weights is None:
-                    # For the first period, if optimization fails, use equal weights
-                    current_weights = pd.Series(
-                        1 / len(returns_data.columns), index=returns_data.columns
-                    )
-                # else continue with previous weights
+                raise RuntimeError(
+                    f"Optimization failed for date {current_date.date()}: {e}"
+                )
 
         # Calculate period returns using current weights
         period_returns = returns_data.loc[period_dates]
@@ -582,6 +647,7 @@ def main(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     years: Optional[int] = None,
+    verbose: bool = False,
 ) -> None:
     """
     Main function to run the Fast Algorithm portfolio optimization.
@@ -649,18 +715,33 @@ def main(
     # Filter returns by predefined period if specified
     elif period and period in periods:
         start_date, end_date = periods[period]
-        returns_data = filter_by_period(returns_data, start_date, end_date)
-
-        # Check if we have enough data after filtering
-        if len(returns_data) == 0:
-            print(
-                f"ERROR: No data available for period {period} ({start_date} to {end_date})"
-            )
-            print("Please choose a different period or check your data source.")
-            return
-
+        # --- NEW: Ensure enough trailing data is included for lookback window ---
+        # Convert start_date to datetime
+        start_dt = pd.to_datetime(start_date)
+        # Find earliest date needed
+        if lookback_window > 1:
+            earliest_needed = start_dt - pd.Timedelta(
+                days=int(lookback_window * 1.5)
+            )  # 1.5x fudge for weekends/holidays
+        else:
+            earliest_needed = start_dt
+        # Filter returns from earliest_needed
+        returns_data = filter_by_period(
+            returns_data, earliest_needed.strftime("%Y-%m-%d"), end_date
+        )
+        print(
+            f"For period '{period}', including trailing data from {earliest_needed.strftime('%Y-%m-%d')} to {end_date}"
+        )
+        # --- END NEW ---
+        # After trailing filter, restrict to only the desired period for reporting/outputs
+        if start_date:
+            returns_data_for_portfolio = returns_data[
+                returns_data.index >= pd.to_datetime(start_date)
+            ]
+        else:
+            returns_data_for_portfolio = returns_data.copy()
     # Apply start_date and end_date filtering for both 'custom' and 'recent' if provided
-    if period in ("custom", "recent"):
+    elif period in ("custom", "recent"):
         if start_date:
             returns_data = returns_data[
                 returns_data.index >= pd.to_datetime(start_date)
@@ -704,14 +785,17 @@ def main(
             rebalance_frequency=rebalance_frequency,
             lookback_window=lookback_window,
             risk_free_rate=risk_free_rate,
-            long_only=long_only,
             max_weight=max_weight,
             min_weight=min_weight,
+            long_only=long_only,
+            period=period,
+            start_date=start_date,
+            verbose=verbose,
         )
 
         # Save rebalancing history (CSV, as before)
         rebalancing_df = pd.DataFrame(performance_metrics["rebalancing_history"])
-        rebalancing_file = os.path.join(output_dir, "fa_rebalancing_history.csv")
+        rebalancing_file = os.path.join(output_dir, "cust_rebalancing_history.csv")
         rebalancing_df.to_csv(rebalancing_file, index=False)
         print(f"Saved rebalancing history to {rebalancing_file}")
         # Save as Excel for custom algorithm (for visualization)
@@ -726,11 +810,11 @@ def main(
 
     # Save results
     # Save optimal weights
-    weights_file = os.path.join(output_dir, "fa_optimal_weights.csv")
+    weights_file = os.path.join(output_dir, "cust_optimal_weights.csv")
     optimal_weights.to_csv(weights_file)
     print(f"Saved optimal weights to {weights_file}")
     # Also save as XLSX
-    weights_xlsx = os.path.join(output_dir, "fa_optimal_weights.xlsx")
+    weights_xlsx = os.path.join(output_dir, "cust_optimal_weights.xlsx")
     optimal_weights.to_frame("weight").to_excel(weights_xlsx)
     print(f"Saved optimal weights to {weights_xlsx}")
 
@@ -745,31 +829,31 @@ def main(
             ],
         }
     )
-    metrics_file = os.path.join(output_dir, "fa_portfolio_metrics.csv")
+    metrics_file = os.path.join(output_dir, "cust_portfolio_metrics.csv")
     metrics_df.to_csv(metrics_file, index=False)
     print(f"Saved portfolio metrics to {metrics_file}")
     # Also save as XLSX
-    metrics_xlsx = os.path.join(output_dir, "fa_portfolio_metrics.xlsx")
+    metrics_xlsx = os.path.join(output_dir, "cust_portfolio_metrics.xlsx")
     metrics_df.to_excel(metrics_xlsx, index=False)
     print(f"Saved portfolio metrics to {metrics_xlsx}")
 
     # Save portfolio returns
-    returns_file = os.path.join(output_dir, "fa_portfolio_returns.csv")
+    returns_file = os.path.join(output_dir, "cust_portfolio_returns.csv")
     portfolio_returns.to_frame("portfolio_return").to_csv(returns_file)
     print(f"Saved portfolio returns to {returns_file}")
     # Also save as XLSX
-    returns_xlsx = os.path.join(output_dir, "fa_portfolio_returns.xlsx")
+    returns_xlsx = os.path.join(output_dir, "cust_portfolio_returns.xlsx")
     portfolio_returns.to_frame("portfolio_return").to_excel(returns_xlsx)
     print(f"Saved portfolio returns to {returns_xlsx}")
 
     # Save rolling annual returns for histogram
-    rolling_returns_file = os.path.join(output_dir, "fa_rolling_annual_returns.csv")
+    rolling_returns_file = os.path.join(output_dir, "cust_rolling_annual_returns.csv")
     performance_metrics["rolling_annual_returns"].to_frame("annual_return").to_csv(
         rolling_returns_file
     )
     print(f"Saved rolling annual returns to {rolling_returns_file}")
     # Also save as XLSX
-    rolling_returns_xlsx = os.path.join(output_dir, "fa_rolling_annual_returns.xlsx")
+    rolling_returns_xlsx = os.path.join(output_dir, "cust_rolling_annual_returns.xlsx")
     performance_metrics["rolling_annual_returns"].to_frame("annual_return").to_excel(
         rolling_returns_xlsx
     )
@@ -857,6 +941,11 @@ if __name__ == "__main__":
         default=252,
         help="Lookback window in trading days for parameter estimation",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print debug messages",
+    )
     args = parser.parse_args()
 
     rebalance_portfolio = True if args.rebalance_frequency is not None else False
@@ -874,4 +963,5 @@ if __name__ == "__main__":
         start_date=args.start_date,
         end_date=args.end_date,
         years=args.years,
+        verbose=args.verbose,
     )

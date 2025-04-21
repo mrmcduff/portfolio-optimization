@@ -10,7 +10,7 @@ os.makedirs(FIGURES_DIR, exist_ok=True)
 # File paths for the four portfolios
 spy_file = os.path.join(RESULTS_DIR, "spy_returns.csv")
 balanced_file = os.path.join(RESULTS_DIR, "balanced_returns_M.csv")
-custom_file = os.path.join(RESULTS_DIR, "fa_portfolio_returns.csv")
+custom_file = os.path.join(RESULTS_DIR, "cust_portfolio_returns.csv")
 fast_file = os.path.join(RESULTS_DIR, "ofa_portfolio_returns.csv")
 
 # Portfolio display names

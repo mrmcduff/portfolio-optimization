@@ -581,7 +581,9 @@ def main(
 
     # Always include custom and fast algorithm portfolios
     additional_benchmarks = {
-        "Custom Algorithm": os.path.join("results/models", "fa_portfolio_returns.csv"),
+        "Custom Algorithm": os.path.join(
+            "results/models", "cust_portfolio_returns.csv"
+        ),
         "Fast Algorithm": os.path.join("results/models", "ofa_portfolio_returns.csv"),
     }
     if benchmark_files:

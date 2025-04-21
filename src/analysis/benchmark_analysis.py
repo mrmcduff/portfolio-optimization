@@ -534,7 +534,7 @@ def plot_histograms_of_annualized_returns(verbose: bool = False):
     files = {
         "SPY": "results/models/spy_returns.csv",
         "Balanced": "results/models/balanced_returns_M.csv",
-        "Custom": "results/models/fa_portfolio_returns.csv",
+        "Custom": "results/models/cust_portfolio_returns.csv",
         "Fast": "results/models/ofa_portfolio_returns.csv",
     }
     outnames = {
@@ -933,7 +933,7 @@ if __name__ == "__main__":
         args.files = [
             "results/models/spy_returns.csv",
             "results/models/balanced_returns_M.csv",
-            "results/models/fa_portfolio_returns.csv",
+            "results/models/cust_portfolio_returns.csv",
             "results/models/one_factor_fast_algorithm_returns.csv",
             "results/models/returns_algorithm_portfolio.csv",
             "results/models/weighted_top_five_portfolio.csv",

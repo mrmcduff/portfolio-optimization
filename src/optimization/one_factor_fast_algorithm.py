@@ -140,7 +140,13 @@ def analyze_portfolio_performance_with_rebalancing(
             verbose=verbose,
         )
         # Calculate optimal portfolio and get the selected weights
-        current_weights = model.calculate_optimal_portfolio()
+        try:
+            current_weights = model.calculate_optimal_portfolio()
+        except Exception as e:
+            print(f"Optimization failed for period starting {start_rebal.date()}: {e}")
+            raise RuntimeError(
+                f"Optimization failed for period starting {start_rebal.date()}: {e}"
+            )
 
         # Store weights for this period
         period_weights = current_weights.copy()  # Make a copy to avoid reference issues
