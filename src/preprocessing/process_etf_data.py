@@ -381,6 +381,26 @@ def prepare_custom_period_data(
     return custom_returns
 
 
+def prepare_non_market_returns(returns: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare non-market returns (all except SPY).
+
+    Parameters:
+    -----------
+    returns : pd.DataFrame
+        Returns data
+
+    Returns:
+    --------
+    pd.DataFrame
+        Non-market returns data
+    """
+    non_market_columns = [col for col in returns.columns if col != "SPY"]
+    non_market_returns = returns[non_market_columns].dropna()
+
+    return non_market_returns
+
+
 def save_processed_data(
     data_dict: Dict[str, pd.DataFrame], output_dir: str
 ) -> List[str]:
@@ -467,6 +487,18 @@ def main(input_file: str, output_dir: str) -> None:
     # Prepare sector ETF data for all periods
     sector_returns = prepare_sector_data(returns)
 
+    # Prepare sectors + BND returns
+    bnd_col = "BND"
+    if bnd_col in returns.columns:
+        sectors_and_bnd_returns = sector_returns.copy()
+        sectors_and_bnd_returns[bnd_col] = returns[bnd_col]
+        sectors_and_bnd_returns = sectors_and_bnd_returns.dropna()
+    else:
+        sectors_and_bnd_returns = sector_returns.copy()
+
+    # Prepare non-market returns (all except SPY)
+    non_market_returns = prepare_non_market_returns(returns)
+
     # Prepare specialized data for the financial crisis period directly from raw data
     # This ensures we don't lose early data due to NaN values in newer ETFs
     financial_crisis_returns = prepare_financial_crisis_data(prices)
@@ -494,6 +526,8 @@ def main(input_file: str, output_dir: str) -> None:
         "monthly_returns": monthly_returns,
         "quarterly_returns": quarterly_returns,
         "sector_returns": sector_returns,
+        "sectors_and_bnd_returns": sectors_and_bnd_returns,
+        "non_market_returns": non_market_returns,
         "financial_crisis_sector_returns": financial_crisis_returns,
         "recent_returns": recent_returns,
         "correlation_matrix": correlation,

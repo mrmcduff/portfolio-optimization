@@ -22,6 +22,8 @@ DEFAULT_PATHS = {
     "processed_dir": "data/processed",
     "daily_returns": "data/processed/daily_returns.csv",
     "sector_returns": "data/processed/sector_returns.csv",
+    "sectors_and_bnd_returns": "data/processed/sectors_and_bnd_returns.csv",
+    "non_market_returns": "data/processed/non_market_returns.csv",
     "spy_returns": "data/processed/spy_returns.csv",
     "balanced_returns": "data/processed/balanced_returns.csv",
     "processed_returns": "data/processed/daily_returns.csv",  # Alias for daily_returns
@@ -209,8 +211,18 @@ def optimize(args: argparse.Namespace) -> int:
     int
         Exit code from the command
     """
+    # Determine which returns file to use based on --targets
+    targets = getattr(args, "targets", "x")
+    if targets == "wide":
+        data_file = getattr(args, "data", None) or DEFAULT_PATHS["non_market_returns"]
+    elif targets == "bond":
+        data_file = (
+            getattr(args, "data", None) or DEFAULT_PATHS["sectors_and_bnd_returns"]
+        )
+    else:  # "x" or fallback
+        data_file = getattr(args, "data", None) or DEFAULT_PATHS["sector_returns"]
+
     # Override defaults with any provided args
-    data_file = getattr(args, "data", None) or DEFAULT_PATHS["sector_returns"]
     output_dir = getattr(args, "output", None) or DEFAULT_PATHS["models_dir"]
 
     # Ensure output directory exists
@@ -760,7 +772,10 @@ def main() -> int:
         "--min-weight", type=float, help="Minimum weight for any asset if included"
     )
     optimize_parser.add_argument(
-        "--allow-short", action="store_true", help="Allow short selling (not long-only)"
+        "--allow-short",
+        "-s",
+        action="store_true",
+        help="Allow short selling (not long-only)",
     )
     # Add rebalancing options for Custom Algorithm
 
@@ -776,6 +791,13 @@ def main() -> int:
         type=int,
         default=252,
         help="Lookback window in trading days for parameter estimation (default: 252 days)",
+    )
+    optimize_parser.add_argument(
+        "--targets",
+        "-t",
+        choices=["x", "bond", "wide"],
+        default="x",
+        help="Target universe: 'x' for sectors only (default), 'bond' for sectors+BND, 'wide' for all except SPY",
     )
 
     # One Factor Fast Algorithm command
@@ -1001,6 +1023,7 @@ def main() -> int:
     # Add optimization parameters
     all_parser.add_argument(
         "--allow-short",
+        "-s",
         action="store_true",
         help="Allow short selling in the Custom Algorithm portfolio",
     )
@@ -1013,6 +1036,13 @@ def main() -> int:
         "--min-weight",
         type=float,
         help="Minimum weight for any asset in the Custom Algorithm portfolio",
+    )
+    all_parser.add_argument(
+        "--targets",
+        "-t",
+        choices=["x", "bond", "wide"],
+        default="x",
+        help="Target universe: 'x' for sectors only (default), 'bond' for sectors+BND, 'wide' for all except SPY",
     )
 
     # Parse arguments
