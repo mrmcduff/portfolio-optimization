@@ -36,6 +36,7 @@ def load_returns(file_path: str) -> Optional[pd.DataFrame]:
     Optional[pd.DataFrame]
         Returns data with dates as index or None if an error occurs
     """
+    print(f"Loading returns data from {file_path}")
     try:
         returns = pd.read_csv(file_path, index_col=0, parse_dates=True)
         print(f"Successfully loaded returns data from {file_path}")
@@ -112,7 +113,7 @@ def prepare_optimization_inputs(
     return expected_returns, covariance_matrix
 
 
-def fast_algorithm_portfolio(
+def custom_algorithm_portfolio(
     returns: pd.Series,
     cov_matrix: pd.DataFrame,
     risk_free_rate: float = 0.0,
@@ -299,7 +300,7 @@ def generate_efficient_frontier(
         Efficient frontier points (return, volatility, sharpe)
     """
     # Find minimum variance portfolio
-    min_var_weights, min_var_info = fast_algorithm_portfolio(
+    min_var_weights, min_var_info = custom_algorithm_portfolio(
         returns, cov_matrix, risk_free_rate, target_return=None, long_only=long_only
     )
     min_return = min_var_info["return"]
@@ -316,7 +317,7 @@ def generate_efficient_frontier(
 
     for target_return in target_returns:
         try:
-            _, portfolio_info = fast_algorithm_portfolio(
+            _, portfolio_info = custom_algorithm_portfolio(
                 returns,
                 cov_matrix,
                 risk_free_rate,
@@ -680,7 +681,7 @@ def main(
     expected_returns, covariance_matrix = prepare_optimization_inputs(returns_data)
 
     # Run Fast Algorithm optimization
-    optimal_weights, portfolio_info = fast_algorithm_portfolio(
+    optimal_weights, portfolio_info = custom_algorithm_portfolio(
         expected_returns,
         covariance_matrix,
         risk_free_rate,
@@ -699,7 +700,7 @@ def main(
             performance_metrics,
         ) = analyze_portfolio_performance_with_rebalancing(
             returns_data,
-            fast_algorithm_portfolio,
+            custom_algorithm_portfolio,
             rebalance_frequency=rebalance_frequency,
             lookback_window=lookback_window,
             risk_free_rate=risk_free_rate,

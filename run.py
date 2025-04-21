@@ -633,6 +633,12 @@ def run_all(args: argparse.Namespace) -> int:
     debug = getattr(args, "debug", False)
     benchmark_analysis.plot_histograms_of_annualized_returns(verbose=debug)
 
+    # Generate composition plots
+    print("\n=== Generating Portfolio Composition Plots ===\n")
+    benchmark_analysis.plot_balanced_monthly_composition()
+    benchmark_analysis.plot_custom_algorithm_composition(analysis_args.output)
+    benchmark_analysis.plot_one_factor_fast_composition(analysis_args.output)
+
     return 0
 
 
