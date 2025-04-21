@@ -563,6 +563,10 @@ def plot_histograms_of_annualized_returns(verbose: bool = False):
                 returns = (1 + series).resample(resample_rules[freq]).prod() - 1
             trailing = (1 + returns).rolling(window).apply(np.prod, raw=True) - 1
             trailing = trailing.dropna()
+            # Filter: Only include trailing returns after 1 year past the start of the test period
+            if not trailing.empty:
+                trailing_start_date = trailing.index[0] + pd.DateOffset(years=1)
+                trailing = trailing[trailing.index >= trailing_start_date]
             # Save trailing returns to CSV
             trailing_csv = base + f"_trailing_1yr_{freq}.csv"
             trailing.to_csv(trailing_csv)
