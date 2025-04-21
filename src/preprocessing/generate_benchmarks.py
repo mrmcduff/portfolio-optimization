@@ -352,6 +352,19 @@ def main(
     if returns_data is None:
         return
 
+    # Save full SPY returns before any filtering
+    if "SPY" in returns_data.columns:
+        spy_returns = returns_data["SPY"]
+        spy_returns.to_csv(os.path.join(output_dir, "spy_returns.csv"), header=True)
+        print(
+            f"Saved full SPY benchmark to {os.path.join(output_dir, 'spy_returns.csv')}"
+        )
+    else:
+        print(
+            "[WARNING] SPY column not found in returns_data; spy_returns.csv not generated."
+        )
+
+    # Find date filter code here
     # Filter returns_data by period or start/end date if provided
     if period and period != "custom":
         if not start_date or not end_date:
@@ -381,7 +394,9 @@ def main(
 
     # Create SPY benchmark
     try:
-        spy_returns = create_spy_benchmark(returns_data)
+        if spy_returns is None:
+            spy_returns = create_spy_benchmark(returns_data)
+
         spy_file = os.path.join(output_dir, "spy_returns.csv")
         spy_returns.to_frame("SPY").to_csv(spy_file)
         print(f"Saved SPY benchmark returns to {spy_file}")
