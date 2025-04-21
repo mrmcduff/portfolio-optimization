@@ -30,7 +30,7 @@ DEFAULT_PATHS = {
     # Results
     "models_dir": "results/models",
     "ca_weights": "results/models/fa_optimal_weights.csv",
-    "ca_returns": "results/models/fa_portfolio_returns.csv",
+    "ca_returns": "results/models/cust_portfolio_returns.csv",
     "one_factor_returns": "results/models/ofa_portfolio_returns.csv",  # Updated to match actual output
     "ra_returns": "results/models/returns_algorithm_portfolio.csv",  # Returns algorithm portfolio returns
     "wtf_returns": "results/models/weighted_top_five_portfolio.csv",  # Weighted Top Five portfolio returns
