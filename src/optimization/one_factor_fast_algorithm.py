@@ -256,6 +256,24 @@ def analyze_portfolio_performance_with_rebalancing(
                 period_daily_returns.append(daily_return)
                 period_cumulative_return *= 1 + daily_return
 
+        # After each rebalance, log the period performance metrics
+        if len(period_daily_returns) > 0:
+            period_ret = period_cumulative_return - 1
+            period_vol = (
+                np.std(period_daily_returns) * np.sqrt(len(period_daily_returns))
+                if len(period_daily_returns) > 1
+                else 0
+            )
+            period_rf = risk_free_rate * (len(period_daily_returns) / 252)
+            period_sharpe = (
+                (period_ret - period_rf) / period_vol if period_vol > 0 else None
+            )
+            print(
+                f"    Period Return: {period_ret:.4%}  |  Period Volatility: {period_vol:.4%}  |  Period Sharpe: {period_sharpe:.4f}"
+                if period_sharpe is not None
+                else f"    Period Return: {period_ret:.4%}  |  Period Volatility: {period_vol:.4%}  |  Period Sharpe: N/A"
+            )
+
         # Store betas for this period
         for security in returns_data.columns:
             if security in model.parameters:
@@ -500,22 +518,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--verbose", action="store_true", help="Enable verbose logging to console"
     )
-    args = parser.parse_args()
-
-    main(
-        args.data,
-        args.market,
-        args.output,
-        period=args.period,
-        risk_free_rate=args.risk_free_rate,
-        rebalance_frequency=args.rebalance_frequency,
-        lookback_window=args.lookback_window,
-        years=args.years,
-        start_date=getattr(args, "start_date", None),
-        end_date=getattr(args, "end_date", None),
-        verbose=getattr(args, "verbose", False),
-    )
-
     args = parser.parse_args()
 
     main(
