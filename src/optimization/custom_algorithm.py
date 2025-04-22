@@ -597,6 +597,7 @@ def analyze_portfolio_performance_with_rebalancing(
                             # Calculate cumulative return for the period
                             period_return = (1 + realized_returns).prod() - 1
                 # Calculate Sharpe ratio for the just-completed period (if not the first rebalance)
+                period_vol = None
                 period_sharpe = None
                 if i > 0 and period_return is not None:
                     period_vol = (
@@ -614,6 +615,7 @@ def analyze_portfolio_performance_with_rebalancing(
                         "date": current_date,
                         "weights": current_weights.to_dict(),
                         "period_return": period_return,
+                        "period_vol": period_vol,
                         "period_sharpe": period_sharpe,
                     }
                 )
@@ -624,6 +626,11 @@ def analyze_portfolio_performance_with_rebalancing(
                     + (
                         f" | Period Return: {period_return:.4%}"
                         if period_return is not None
+                        else ""
+                    )
+                    + (
+                        f" | Period Volatility: {period_vol:.4%}"
+                        if period_vol is not None
                         else ""
                     )
                     + (
@@ -847,11 +854,15 @@ def main(
         rebalancing_df.to_excel(rebalancing_xlsx, index=False)
         print(f"Saved custom algorithm rebalancing log to {rebalancing_xlsx}")
         # Also print summary of returns and Sharpe ratios for each period
-        print("\nRebalancing period returns and Sharpe ratios:")
+        print("\nRebalancing period returns, volatility, and Sharpe ratios:")
         for row in rebalancing_df.itertuples():
-            if hasattr(row, "period_return") and hasattr(row, "period_sharpe"):
+            if (
+                hasattr(row, "period_return")
+                and hasattr(row, "period_sharpe")
+                and hasattr(row, "period_vol")
+            ):
                 print(
-                    f"Date: {row.date} | Period Return: {row.period_return:.4%} | Period Sharpe: {row.period_sharpe if row.period_sharpe is not None else 'N/A'}"
+                    f"Date: {row.date} | Period Return: {row.period_return:.4%} | Period Volatility: {row.period_vol:.4%} | Period Sharpe: {row.period_sharpe if row.period_sharpe is not None else 'N/A'}"
                 )
     else:
         # Analyze historical performance

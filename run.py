@@ -73,6 +73,8 @@ def run_command(command: List[str], display_command: bool = True) -> int:
     """
     if display_command:
         print(f"\n=== Running: {' '.join(command)} ===\n")
+    else:
+        print(f"\n=== Secretly Running: {' '.join(command)} ===\n")
 
     try:
         # Run the command and stream output in real-time
@@ -544,7 +546,6 @@ def run_weighted_top_five(args: argparse.Namespace) -> int:
 
 def run_one_factor_fast_algorithm(args: argparse.Namespace) -> int:
     """Run the One Factor Fast Algorithm for portfolio optimization."""
-    print("\n=== Running One Factor Fast Algorithm Optimization ===\n")
 
     # Get paths from args or use defaults
     returns = getattr(args, "returns", None) or DEFAULT_PATHS["daily_returns"]
@@ -615,6 +616,7 @@ def run_all(args: argparse.Namespace) -> int:
     print("\n=== Running One Factor Fast Algorithm Optimization ===\n")
     if run_one_factor_fast_algorithm(args) != 0:
         return 1
+    print("\n=== One Factor Fast Algorithm Optimization Complete ===\n")
 
     # Set up analysis arguments
     analysis_args = argparse.Namespace()
