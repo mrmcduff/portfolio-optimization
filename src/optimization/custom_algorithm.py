@@ -580,13 +580,57 @@ def analyze_portfolio_performance_with_rebalancing(
                 current_weights = optimal_weights
 
                 # Record rebalancing event
+                # Calculate period return for the just-completed period (if not the first rebalance)
+                period_return = None
+                if i > 0:
+                    prev_date = rebal_dates[i - 1]
+                    prev_period_mask = (returns_data.index >= prev_date) & (
+                        returns_data.index < current_date
+                    )
+                    prev_period_dates = returns_data.index[prev_period_mask]
+                    if len(prev_period_dates) > 0:
+                        # Use portfolio_returns already calculated up to this point
+                        realized_returns = portfolio_returns.loc[
+                            prev_period_dates
+                        ].dropna()
+                        if not realized_returns.empty:
+                            # Calculate cumulative return for the period
+                            period_return = (1 + realized_returns).prod() - 1
+                # Calculate Sharpe ratio for the just-completed period (if not the first rebalance)
+                period_sharpe = None
+                if i > 0 and period_return is not None:
+                    period_vol = (
+                        realized_returns.std() * np.sqrt(len(realized_returns))
+                        if len(realized_returns) > 1
+                        else 0
+                    )
+                    if period_vol > 0:
+                        period_sharpe = (
+                            period_return
+                            - risk_free_rate * (len(realized_returns) / 252)
+                        ) / period_vol
                 rebalancing_history.append(
-                    {"date": current_date, "weights": current_weights.to_dict()}
+                    {
+                        "date": current_date,
+                        "weights": current_weights.to_dict(),
+                        "period_return": period_return,
+                        "period_sharpe": period_sharpe,
+                    }
                 )
 
                 print(
                     f"Rebalanced portfolio on {current_date.date()}"
                     + (f" [dropped: {dropped}]" if dropped else "")
+                    + (
+                        f" | Period Return: {period_return:.4%}"
+                        if period_return is not None
+                        else ""
+                    )
+                    + (
+                        f" | Period Sharpe: {period_sharpe:.4f}"
+                        if period_sharpe is not None
+                        else ""
+                    )
                 )
             except Exception as e:
                 print(f"Optimization failed for date {current_date.date()}: {e}")
@@ -802,6 +846,13 @@ def main(
         rebalancing_xlsx = os.path.join(output_dir, "custom_algorithm_rebalancing.xlsx")
         rebalancing_df.to_excel(rebalancing_xlsx, index=False)
         print(f"Saved custom algorithm rebalancing log to {rebalancing_xlsx}")
+        # Also print summary of returns and Sharpe ratios for each period
+        print("\nRebalancing period returns and Sharpe ratios:")
+        for row in rebalancing_df.itertuples():
+            if hasattr(row, "period_return") and hasattr(row, "period_sharpe"):
+                print(
+                    f"Date: {row.date} | Period Return: {row.period_return:.4%} | Period Sharpe: {row.period_sharpe if row.period_sharpe is not None else 'N/A'}"
+                )
     else:
         # Analyze historical performance
         portfolio_returns, performance_metrics = analyze_portfolio_performance(

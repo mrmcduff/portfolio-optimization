@@ -689,7 +689,6 @@ def main() -> int:
     )
     benchmark_parser.add_argument(
         "--returns",
-        "-r",
         help=f"Returns data file (default: {DEFAULT_PATHS['daily_returns']})",
     )
     benchmark_parser.add_argument(
@@ -716,6 +715,7 @@ def main() -> int:
     )
     benchmark_parser.add_argument(
         "--frequency",
+        "-f",
         choices=["D", "W", "M", "Q", "A"],
         default="M",
         help="Rebalancing frequency for periodic method (default: M for monthly)",
@@ -766,7 +766,7 @@ def main() -> int:
         "--risk-free-rate", "-r", type=float, help="Risk-free rate (annualized)"
     )
     optimize_parser.add_argument(
-        "--max-weight", "-m", type=float, help="Maximum weight for any asset"
+        "--max-weight", type=float, help="Maximum weight for any asset"
     )
     optimize_parser.add_argument(
         "--min-weight", type=float, help="Minimum weight for any asset if included"
@@ -807,22 +807,17 @@ def main() -> int:
     )
     one_factor_parser.add_argument(
         "--returns",
-        "-r",
         help=f"Returns data file (default: {DEFAULT_PATHS['daily_returns']})",
     )
     one_factor_parser.add_argument(
         "--market-returns",
-        "-m",
         help=f"Market returns file (default: {DEFAULT_PATHS['spy_returns']})",
     )
     one_factor_parser.add_argument(
-        "--output",
-        "-o",
-        help=f"Output directory (default: {DEFAULT_PATHS['models_dir']})",
+        "--output", help=f"Output directory (default: {DEFAULT_PATHS['models_dir']})"
     )
     one_factor_parser.add_argument(
         "--period",
-        "-p",
         choices=["financial_crisis", "post_crisis", "recent", "custom"],
         help="Period to analyze (use 'custom' with --start-date and --end-date for custom periods)",
     )
@@ -842,10 +837,11 @@ def main() -> int:
         help="Number of years for custom period (starting from start-date)",
     )
     one_factor_parser.add_argument(
-        "--risk-free-rate", "-f", type=float, help="Risk-free rate (annualized)"
+        "--risk-free-rate", "-r", type=float, help="Risk-free rate (annualized)"
     )
     one_factor_parser.add_argument(
         "--rebalance-frequency",
+        "-f",
         choices=["D", "W", "M", "Q", "A"],
         default="M",
         help="Rebalancing frequency (default: M for monthly)",
@@ -862,17 +858,14 @@ def main() -> int:
         "visualize", help="Run portfolio visualization"
     )
     visualize_parser.add_argument(
-        "--weights", "-w", help=f"Weights file (default: {DEFAULT_PATHS['ca_weights']})"
+        "--weights", help=f"Weights file (default: {DEFAULT_PATHS['ca_weights']})"
     )
     visualize_parser.add_argument(
         "--returns",
-        "-r",
         help=f"Returns data file (default: {DEFAULT_PATHS['sector_returns']})",
     )
     visualize_parser.add_argument(
-        "--output",
-        "-o",
-        help=f"Output directory (default: {DEFAULT_PATHS['figures_dir']})",
+        "--output", help=f"Output directory (default: {DEFAULT_PATHS['figures_dir']})"
     )
     visualize_parser.add_argument(
         "--spy-benchmark", help="Path to S&P 500 (SPY) returns CSV"
@@ -881,7 +874,7 @@ def main() -> int:
         "--bond-benchmark", help="Path to 60/40 portfolio returns CSV"
     )
     visualize_parser.add_argument(
-        "--risk-free-rate", type=float, help="Risk-free rate (annualized)"
+        "--risk-free-rate", "-r", type=float, help="Risk-free rate (annualized)"
     )
 
     # Analyze command
@@ -899,15 +892,13 @@ def main() -> int:
         help="List of return files to analyze (CSV)",
     )
     analyze_parser.add_argument(
-        "--names", "-n", nargs="+", help="Names for each return series"
+        "--names", nargs="+", help="Names for each return series"
     )
     analyze_parser.add_argument(
         "--risk-free-rate", "-r", type=float, help="Annualized risk-free rate"
     )
     analyze_parser.add_argument(
-        "--output",
-        "-o",
-        help=f"Output directory (default: {DEFAULT_PATHS['analysis_dir']})",
+        "--output", help=f"Output directory (default: {DEFAULT_PATHS['analysis_dir']})"
     )
 
     # Rebalancing comparison command
@@ -916,22 +907,26 @@ def main() -> int:
     )
     rebalance_parser.add_argument(
         "--returns",
-        "-r",
         help=f"Returns data file (default: {DEFAULT_PATHS['daily_returns']})",
     )
-    rebalance_parser.add_argument("--output", "-o", help="Directory to save results")
+    rebalance_parser.add_argument("--output", help="Directory to save results")
+    rebalance_parser.add_argument("--stock", help="Stock ETF symbol")
+    rebalance_parser.add_argument("--bond", help="Bond ETF symbol")
     rebalance_parser.add_argument(
-        "--stock", "-s", default="SPY", help="Stock ETF symbol"
-    )
-    rebalance_parser.add_argument("--bond", "-b", default="BND", help="Bond ETF symbol")
-    rebalance_parser.add_argument(
-        "--weight", "-w", type=float, default=0.6, help="Target stock weight"
+        "--weight", type=float, default=0.6, help="Target stock weight"
     )
     rebalance_parser.add_argument(
-        "--risk-free-rate", type=float, default=0.02, help="Risk-free rate (annualized)"
+        "--risk-free-rate",
+        "-r",
+        type=float,
+        default=0.02,
+        help="Risk-free rate (annualized)",
     )
     rebalance_parser.add_argument(
-        "--threshold", "-t", type=float, default=0.05, help="Rebalancing threshold"
+        "--threshold",
+        type=float,
+        default=0.05,
+        help="Rebalancing threshold",
     )
 
     # Returns Algorithm command
@@ -939,14 +934,10 @@ def main() -> int:
         "returns", help="Run Returns Algorithm portfolio optimization"
     )
     returns_parser.add_argument(
-        "--data",
-        "-d",
-        help=f"Returns data file (default: {DEFAULT_PATHS['sector_returns']})",
+        "--data", help=f"Returns data file (default: {DEFAULT_PATHS['sector_returns']})"
     )
     returns_parser.add_argument(
-        "--output",
-        "-o",
-        help=f"Output directory (default: {DEFAULT_PATHS['models_dir']})",
+        "--output", help=f"Output directory (default: {DEFAULT_PATHS['models_dir']})"
     )
     returns_parser.add_argument(
         "--rebalance-frequency",
@@ -964,7 +955,7 @@ def main() -> int:
     returns_parser.add_argument(
         "--max-weight",
         type=float,
-        default=0.2,
+        default=0.25,
         help="Maximum weight for any asset (default: 0.2 or 20%)",
     )
 
@@ -978,11 +969,10 @@ def main() -> int:
     )
     # We'll use the same arguments for each step when running all
     all_parser.add_argument(
-        "--input", "-i", help=f"Input data file (default: {DEFAULT_PATHS['raw_data']})"
+        "--input", help=f"Input data file (default: {DEFAULT_PATHS['raw_data']})"
     )
     all_parser.add_argument(
         "--period",
-        "-p",
         choices=["financial_crisis", "post_crisis", "recent"],
         default="recent",
         help="Period to analyze (default: recent)",
@@ -991,7 +981,7 @@ def main() -> int:
         "--risk-free-rate",
         "-r",
         type=float,
-        default=0.02,
+        default=0.05,
         help="Risk-free rate (annualized) (default: 0.02)",
     )
     # Add rebalancing options for the all command
