@@ -180,7 +180,14 @@ def plot_custom_algorithm_composition(output_dir: str, period: str = None):
             print(
                 f"Negative weights detected in {rebal_path}: plotting as line chart (not stacked area) due to short sales."
             )
-            weights_norm.plot(ax=plt.gca(), cmap="tab20")
+            ax = plt.gca()
+            weights_norm.plot(ax=ax, cmap="tab20")
+
+            # Add a horizontal line at y=0 to clearly show the boundary between long and short positions
+            ax.axhline(y=0, color="black", linestyle="-", linewidth=1.0, alpha=0.7)
+
+            # Add grid lines to make it easier to see position sizes
+            ax.grid(True, linestyle="--", alpha=0.6)
         else:
             weights_norm.plot.area(ax=plt.gca(), stacked=True, cmap="tab20")
 
