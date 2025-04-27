@@ -262,6 +262,7 @@ def optimize(args: argparse.Namespace) -> int:
         command.extend(["--min-weight", str(args.min_weight)])
     if hasattr(args, "allow_short") and args.allow_short:
         command.append("--allow-short")
+        command.append("--run-both-versions")
 
     # Add Custom Algorithm rebalancing parameters
     # Removed --rebalance-portfolio, only using --rebalance-frequency now.
@@ -620,18 +621,40 @@ def run_all(args: argparse.Namespace) -> int:
 
     # Set up analysis arguments
     analysis_args = argparse.Namespace()
-    analysis_args.files = [
+
+    # Check if we have both long-only and short-enabled custom algorithm versions
+    # Use the models directory from DEFAULT_PATHS
+    models_dir = DEFAULT_PATHS["models_dir"]
+    cust_long_returns = os.path.join(models_dir, "cust_long_portfolio_returns.csv")
+    cust_short_returns = os.path.join(models_dir, "cust_short_portfolio_returns.csv")
+
+    # Base files and names that are always included
+    base_files = [
         DEFAULT_PATHS["spy_returns"],
         DEFAULT_PATHS["balanced_returns"],
-        DEFAULT_PATHS["ca_returns"],
         DEFAULT_PATHS["one_factor_returns"],
     ]
-    analysis_args.names = [
+
+    base_names = [
         "S&P 500",
         "60/40 Portfolio",
-        "Custom Algorithm",
         "One Factor Fast Algorithm",
     ]
+
+    # Add appropriate custom algorithm versions
+    if os.path.exists(cust_long_returns) and os.path.exists(cust_short_returns):
+        # We have both long and short versions
+        base_files.insert(2, cust_long_returns)
+        base_files.insert(3, cust_short_returns)
+        base_names.insert(2, "Custom Algorithm (Long)")
+        base_names.insert(3, "Custom Algorithm (Short)")
+    else:
+        # Just use the standard version
+        base_files.insert(2, DEFAULT_PATHS["ca_returns"])
+        base_names.insert(2, "Custom Algorithm")
+
+    analysis_args.files = base_files
+    analysis_args.names = base_names
     analysis_args.risk_free_rate = getattr(args, "risk_free_rate", 0.02)
     analysis_args.output = DEFAULT_PATHS["analysis_dir"]
 

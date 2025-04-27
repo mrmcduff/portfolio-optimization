@@ -79,60 +79,127 @@ def plot_custom_algorithm_composition(output_dir: str, period: str = None):
     """
     Load custom_algorithm_rebalancing.xlsx and plot a normalized stacked area chart
     showing the portfolio composition (weights) over time.
+    Also checks for long/short versions and plots them as well.
     """
     import os
 
-    rebal_path = os.path.join("results/models", "custom_algorithm_rebalancing.xlsx")
-    if not os.path.exists(rebal_path):
-        print(f"Rebalancing file not found: {rebal_path}")
-        return
-    df = pd.read_excel(rebal_path)
-    # Filter by start_date and end_date using 'end_date' column only (for consistency)
-    start_date_env = os.environ.get("BENCHMARK_START_DATE")
-    end_date_env = os.environ.get("BENCHMARK_END_DATE")
-    if start_date_env:
-        df = df[pd.to_datetime(df["end_date"]) >= pd.to_datetime(start_date_env)]
-    if end_date_env:
-        df = df[pd.to_datetime(df["end_date"]) <= pd.to_datetime(end_date_env)]
+    # Check for different versions of rebalancing files
+    base_rebal_path = os.path.join(
+        "results/models", "custom_algorithm_rebalancing.xlsx"
+    )
+    long_rebal_path = os.path.join(
+        "results/models", "custom_long_algorithm_rebalancing.xlsx"
+    )
+    short_rebal_path = os.path.join(
+        "results/models", "custom_short_algorithm_rebalancing.xlsx"
+    )
 
-    # Parse weights (stored as dicts in Excel)
-    if isinstance(df.loc[0, "weights"], str):
-        df["weights"] = df["weights"].apply(ast.literal_eval)
+    rebal_paths = []
 
-    # Build a DataFrame: index=rebalancing date, columns=securities, values=weights
-    weight_records = []
-    for idx, row in df.iterrows():
-        date = pd.to_datetime(row["date"])  # Use rebalancing date for time axis
-        wdict = row["weights"]
-        for security, weight in wdict.items():
-            weight_records.append(
-                {"date": date, "security": security, "weight": weight}
+    # Determine which files exist and should be plotted
+    if os.path.exists(long_rebal_path) and os.path.exists(short_rebal_path):
+        # Both long and short versions exist
+        rebal_paths = [
+            (
+                long_rebal_path,
+                "Custom Algorithm (Long) Portfolio Composition Over Time",
+                "custom_algorithm_long_composition.png",
+            ),
+            (
+                short_rebal_path,
+                "Custom Algorithm (Short) Portfolio Composition Over Time",
+                "custom_algorithm_short_composition.png",
+            ),
+        ]
+    elif os.path.exists(base_rebal_path):
+        # Just the standard version exists
+        rebal_paths = [
+            (
+                base_rebal_path,
+                "Custom Algorithm Portfolio Composition Over Time",
+                "custom_algorithm_composition.png",
             )
-    weights_long = pd.DataFrame(weight_records)
-    weights_pivot = weights_long.pivot(
-        index="date", columns="security", values="weight"
-    ).fillna(0)
-    # Normalize (should sum to 1, but enforce)
-    weights_norm = weights_pivot.div(weights_pivot.sum(axis=1), axis=0)
-
-    # Plot
-    plt.figure(figsize=(14, 7))
-    if (weights_norm < 0).any().any():
-        print(
-            "Negative weights detected: plotting as line chart (not stacked area) due to short sales."
-        )
-        weights_norm.plot(ax=plt.gca(), cmap="tab20")
+        ]
     else:
-        weights_norm.plot.area(ax=plt.gca(), stacked=True, cmap="tab20")
-    plt.title("Custom Algorithm Portfolio Composition Over Time")
-    plt.ylabel("Portfolio Weight")
-    plt.xlabel("Date")
-    plt.legend(loc="center left", bbox_to_anchor=(1.0, 0.5), title="Security")
-    plt.tight_layout()
-    outpath = os.path.join(output_dir, "custom_algorithm_composition.png")
-    plt.savefig(outpath, dpi=300, bbox_inches="tight")
-    plt.close()
-    print(f"Saved composition plot to {outpath}")
+        print("No rebalancing files found for custom algorithm")
+        return
+
+    # Plot each version
+    for rebal_path, title, output_filename in rebal_paths:
+        print(f"Processing rebalancing file: {rebal_path}")
+
+        df = pd.read_excel(rebal_path)
+        # Filter by start_date and end_date using date column
+        start_date_env = os.environ.get("BENCHMARK_START_DATE")
+        end_date_env = os.environ.get("BENCHMARK_END_DATE")
+
+        # First check for 'end_date' column, fall back to 'date'
+        date_col = "end_date" if "end_date" in df.columns else "date"
+
+        if start_date_env:
+            df = df[pd.to_datetime(df[date_col]) >= pd.to_datetime(start_date_env)]
+        if end_date_env:
+            df = df[pd.to_datetime(df[date_col]) <= pd.to_datetime(end_date_env)]
+
+        # Parse weights (stored as dicts in Excel)
+        if not df.empty and isinstance(df.loc[0, "weights"], str):
+            df["weights"] = df["weights"].apply(ast.literal_eval)
+
+        # Check if we have data
+        if df.empty:
+            print(f"No data in rebalancing file {rebal_path} after date filtering")
+            continue
+
+        # Build a DataFrame: index=rebalancing date, columns=securities, values=weights
+        weight_records = []
+        for idx, row in df.iterrows():
+            date = pd.to_datetime(row["date"])  # Use rebalancing date for time axis
+            wdict = row["weights"]
+            for security, weight in wdict.items():
+                weight_records.append(
+                    {"date": date, "security": security, "weight": weight}
+                )
+        weights_long = pd.DataFrame(weight_records)
+
+        if weights_long.empty:
+            print(f"No weight records found in {rebal_path}")
+            continue
+
+        weights_pivot = weights_long.pivot(
+            index="date", columns="security", values="weight"
+        ).fillna(0)
+
+        # Normalize (should sum to 1, but enforce)
+        weights_norm = weights_pivot.div(weights_pivot.sum(axis=1), axis=0)
+
+        # Plot
+        plt.figure(figsize=(14, 7))
+        has_negative = (weights_norm < 0).any().any()
+
+        if has_negative:
+            print(
+                f"Negative weights detected in {rebal_path}: plotting as line chart (not stacked area) due to short sales."
+            )
+            ax = plt.gca()
+            weights_norm.plot(ax=ax, cmap="tab20")
+
+            # Add a horizontal line at y=0 to clearly show the boundary between long and short positions
+            ax.axhline(y=0, color="black", linestyle="-", linewidth=1.0, alpha=0.7)
+
+            # Add grid lines to make it easier to see position sizes
+            ax.grid(True, linestyle="--", alpha=0.6)
+        else:
+            weights_norm.plot.area(ax=plt.gca(), stacked=True, cmap="tab20")
+
+        plt.title(title)
+        plt.ylabel("Portfolio Weight")
+        plt.xlabel("Date")
+        plt.legend(loc="center left", bbox_to_anchor=(1.0, 0.5), title="Security")
+        plt.tight_layout()
+        outpath = os.path.join(output_dir, output_filename)
+        plt.savefig(outpath, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"Saved composition plot to {outpath}")
 
 
 def load_return_files(
@@ -187,6 +254,101 @@ def load_return_files(
     if all_returns:
         combined = pd.concat(all_returns, axis=1)
         combined.columns = all_names
+
+        # Calculate common date range before alignment (for logging)
+        orig_first_date = combined.index.min()
+        orig_last_date = combined.index.max()
+        orig_count = len(combined)
+
+        # Look for known period boundaries
+        # Define standard periods for analysis
+        periods = {
+            "financial_crisis": ("2008-01-02", "2013-01-02"),
+            "post_crisis": ("2012-01-01", "2018-12-31"),
+            "recent": ("2019-01-01", "2023-12-31"),
+        }
+        period_of_interest = "recent"  # Default to recent
+
+        # Check if any environment variables are set to override this
+        import os
+
+        period_env = os.environ.get("BENCHMARK_PERIOD")
+        if period_env and period_env in periods:
+            period_of_interest = period_env
+
+        # Get the date range for the period of interest
+        period_start = pd.to_datetime(periods[period_of_interest][0])
+        period_end = pd.to_datetime(periods[period_of_interest][1])
+
+        # Identify which series are missing data within the period of interest
+        period_mask = (combined.index >= period_start) & (combined.index <= period_end)
+        period_data = combined.loc[period_mask]
+
+        # Check each series for NaN values in the period of interest
+        nan_counts = {}
+        missing_ranges = {}
+        for col in period_data.columns:
+            nan_series = period_data[col].isna()
+            count = nan_series.sum()
+            if count > 0:
+                nan_counts[col] = count
+                # Find first and last date with missing data
+                missing_dates = period_data.index[nan_series]
+                if len(missing_dates) > 0:
+                    # Group consecutive dates - this is simplified logic
+                    ranges = []
+                    current_range = [missing_dates[0]]
+                    for i in range(1, len(missing_dates)):
+                        if (
+                            missing_dates[i] - missing_dates[i - 1]
+                        ).days > 5:  # New range if gap > 5 days
+                            ranges.append((current_range[0], current_range[-1]))
+                            current_range = [missing_dates[i]]
+                        else:
+                            current_range.append(missing_dates[i])
+                    ranges.append((current_range[0], current_range[-1]))
+                    missing_ranges[col] = ranges
+
+        # Trim to common date range to ensure fair comparison
+        # Drop NaN values to find valid range across all series
+        combined = combined.dropna()
+
+        if len(combined) < orig_count:
+            first_valid_date = combined.index.min()
+            last_valid_date = combined.index.max()
+            print("Aligned all returns to common date range:")
+            print(
+                f"  Original: {orig_first_date.strftime('%Y-%m-%d')} to {orig_last_date.strftime('%Y-%m-%d')} ({orig_count} trading days)"
+            )
+            print(
+                f"  Aligned: {first_valid_date.strftime('%Y-%m-%d')} to {last_valid_date.strftime('%Y-%m-%d')} ({len(combined)} trading days)"
+            )
+            print(
+                f"  Dropped {orig_count - len(combined)} days with missing data in at least one series"
+            )
+
+            # Report which series were missing data in the period of interest
+            if nan_counts:
+                print(
+                    f"\nSeries with missing data in {period_of_interest} period ({period_start.strftime('%Y-%m-%d')} to {period_end.strftime('%Y-%m-%d')}):"
+                )
+                for col, count in nan_counts.items():
+                    percent = count / len(period_data) * 100
+                    print(f"  {col}: {count} missing values ({percent:.2f}% of period)")
+
+                    # Show detailed ranges of missing data
+                    if col in missing_ranges:
+                        print("    Missing data in these date ranges:")
+                        for range_start, range_end in missing_ranges[col]:
+                            days = (range_end - range_start).days + 1
+                            print(
+                                f"      {range_start.strftime('%Y-%m-%d')} to {range_end.strftime('%Y-%m-%d')} ({days} days)"
+                            )
+            else:
+                print(
+                    f"\nNo series missing data within the {period_of_interest} period."
+                )
+
         return combined
     else:
         raise ValueError("No valid return files were loaded")
@@ -520,6 +682,7 @@ def plot_histograms_of_annualized_returns(verbose: bool = False):
     """
     Plot histograms of annualized returns per week for SPY, balanced, custom, and fast algorithms.
     Save to results/figures as histogram_spy.png, histogram_balanced.png, histogram_custom.png, histogram_fast.png.
+    If both long-only and short-enabled custom algorithm versions exist, plot both.
     Print the file path used for each graph, and print mean/median annualized weekly return values.
     """
     import os
@@ -531,18 +694,32 @@ def plot_histograms_of_annualized_returns(verbose: bool = False):
     FIGURES_DIR = "results/figures"
     os.makedirs(FIGURES_DIR, exist_ok=True)
 
+    # Check for both long and short custom algorithm versions
+    cust_long_path = "results/models/cust_long_portfolio_returns.csv"
+    cust_short_path = "results/models/cust_short_portfolio_returns.csv"
+    cust_path = "results/models/cust_portfolio_returns.csv"
+
     files = {
         "SPY": "results/models/spy_returns.csv",
         "Balanced": "results/models/balanced_returns_M.csv",
-        "Custom": "results/models/cust_portfolio_returns.csv",
         "Fast": "results/models/ofa_portfolio_returns.csv",
     }
+
     outnames = {
         "SPY": "histogram_spy.png",
         "Balanced": "histogram_balanced.png",
-        "Custom": "histogram_custom.png",
         "Fast": "histogram_fast.png",
     }
+
+    # Add appropriate custom algorithm versions
+    if os.path.exists(cust_long_path) and os.path.exists(cust_short_path):
+        files["Custom (Long)"] = cust_long_path
+        files["Custom (Short)"] = cust_short_path
+        outnames["Custom (Long)"] = "histogram_custom_long.png"
+        outnames["Custom (Short)"] = "histogram_custom_short.png"
+    elif os.path.exists(cust_path):
+        files["Custom"] = cust_path
+        outnames["Custom"] = "histogram_custom.png"
     for label, fpath in files.items():
         print(f"Loading data for {label} from: {fpath}")
         import os
@@ -619,6 +796,47 @@ def plot_histograms_of_annualized_returns(verbose: bool = False):
         print(f"Saved histogram to {outpath}")
 
 
+def shorten_column_names(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Shortens column names for better display in fixed-width tables.
+
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        DataFrame with columns to shorten
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with shortened column names
+    """
+    # Make a copy to avoid modifying the original
+    result = df.copy()
+
+    # Define mapping of full names to shortened versions
+    short_names = {
+        "S&P 500": "S&P 500",
+        "60/40 Portfolio": "60/40",
+        "Custom Algorithm": "Custom Algo",
+        "Custom Algorithm (Long)": "Custom (LO)",
+        "Custom Algorithm (Short)": "Custom (SH)",
+        "One Factor Fast Algorithm": "Fast Algo",
+        "Returns Algorithm": "Returns Algo",
+        "Weighted Top Five": "WTF",
+    }
+
+    # Apply the mapping to columns
+    result.columns = [short_names.get(col, col) for col in result.columns]
+
+    # If it's a correlation matrix, also apply to index
+    if isinstance(result.index, pd.Index) and any(
+        idx in short_names for idx in result.index
+    ):
+        result.index = [short_names.get(idx, idx) for idx in result.index]
+
+    return result
+
+
 def format_table(data: pd.DataFrame, title: str) -> str:
     """
     Format a DataFrame as a markdown table with consistent column widths.
@@ -668,28 +886,8 @@ def format_table(data: pd.DataFrame, title: str) -> str:
     # Create markdown table
     table = f"## {title}\n\n"
 
-    # Shorten column names
-    short_names = {
-        "S&P 500": "S&P 500",
-        "60/40 Portfolio": "60/40",
-        "Custom Algorithm": "Custom Algo",
-        "One Factor Fast Algorithm": "Fast Algo",
-        "Returns Algorithm": "Returns Algo",
-        "Weighted Top Five": "WTF",
-    }
-
-    # Apply shortened names to both columns and index if it's a correlation matrix
-    if "Return Correlations" in title:
-        formatted_data.columns = [
-            short_names.get(col, col) for col in formatted_data.columns
-        ]
-        formatted_data.index = [
-            short_names.get(idx, idx) for idx in formatted_data.index
-        ]
-    else:
-        formatted_data.columns = [
-            short_names.get(col, col) for col in formatted_data.columns
-        ]
+    # Apply column name shortening
+    formatted_data = shorten_column_names(formatted_data)
 
     # Header row with wider metric column
     headers = ["Metric"] + list(formatted_data.columns)
@@ -767,6 +965,9 @@ def create_summary_report(
         "Jensen's Alpha",
     ]
 
+    # Apply shortened column names
+    formatted_metrics = shorten_column_names(formatted_metrics)
+
     # Create a new DataFrame for the formatted values
     formatted_metrics_display = pd.DataFrame(
         index=formatted_metrics.index, columns=formatted_metrics.columns
@@ -790,17 +991,37 @@ def create_summary_report(
     # Add correlation information
     report += "## Return Correlations\n\n"
     correlation = returns.corr()
+    # Apply shortened names to correlation table
+    correlation = shorten_column_names(correlation)
     correlation_table = correlation.to_markdown()
     report += correlation_table + "\n\n"
 
     # Add benchmark descriptions
     report += "## Benchmark Descriptions\n\n"
 
-    for column in returns.columns:
+    # Use shortened column names for benchmark descriptions
+    returns_short = shorten_column_names(pd.DataFrame(columns=returns.columns))
+    returns_columns_short = returns_short.columns.tolist()
+
+    for i, column in enumerate(returns_columns_short):
         report += f"### {column}\n\n"
-        if column == returns.columns[0]:
+
+        # Special descriptions for different portfolio types
+        if i == 0:  # First column (market benchmark)
             report += (
                 "Market benchmark used for calculating Beta and Jensen's Alpha.\n\n"
+            )
+        elif "Custom (Long)" in column:
+            report += "Custom Algorithm portfolio with long-only constraints.\n\n"
+        elif "Custom (Short)" in column:
+            report += "Custom Algorithm portfolio allowing short positions.\n\n"
+        elif "Custom Algo" in column:
+            report += (
+                "Custom Algorithm portfolio as specified in the run configuration.\n\n"
+            )
+        elif "Fast Algo" in column:
+            report += (
+                "One Factor Fast Algorithm portfolio using the Markowitz framework.\n\n"
             )
         else:
             report += "Portfolio or benchmark returns series.\n\n"
@@ -813,7 +1034,7 @@ def create_summary_report(
     report += "- Conditional VaR (95%) represents the average loss on days when losses exceed the 95% VaR.\n"
     report += "- Jensen's Alpha measures the portfolio's excess return relative to what would be predicted by CAPM.\n"
     report += "- Beta measures the portfolio's systematic risk relative to the market benchmark.\n"
-    report += f"- Market benchmark used: {returns.columns[0]}\n"
+    report += f"- Market benchmark used: {returns_columns_short[0]}\n"
 
     # Save if output_file is provided
     if output_file:
@@ -930,25 +1151,77 @@ if __name__ == "__main__":
 
     # Add default files if not provided
     if not args.files:
-        args.files = [
+        # Check if we have both long-only and short-enabled versions
+        cust_long_path = "results/models/cust_long_portfolio_returns.csv"
+        cust_short_path = "results/models/cust_short_portfolio_returns.csv"
+
+        # Base set of files
+        base_files = [
             "results/models/spy_returns.csv",
             "results/models/balanced_returns_M.csv",
-            "results/models/cust_portfolio_returns.csv",
-            "results/models/one_factor_fast_algorithm_returns.csv",
-            "results/models/returns_algorithm_portfolio.csv",
-            "results/models/weighted_top_five_portfolio.csv",
         ]
 
-    # Add default names if not provided
-    if not args.names:
-        args.names = [
+        # Default names
+        base_names = [
             "S&P 500",
             "60/40",
-            "Custom Algorithm",
-            "One Factor Fast Algorithm",
-            "Returns Algorithm",
-            "Weighted Top Five",
         ]
+
+        # Check for dual custom algorithm versions
+        if os.path.exists(cust_long_path) and os.path.exists(cust_short_path):
+            # Add both versions
+            base_files.extend([cust_long_path, cust_short_path])
+            base_names.extend(["Custom Algorithm (Long)", "Custom Algorithm (Short)"])
+        else:
+            # Just add the standard version
+            base_files.append("results/models/cust_portfolio_returns.csv")
+            base_names.append("Custom Algorithm")
+
+        # Add the remaining files
+        base_files.extend(
+            [
+                "results/models/one_factor_fast_algorithm_returns.csv",
+                "results/models/returns_algorithm_portfolio.csv",
+                "results/models/weighted_top_five_portfolio.csv",
+            ]
+        )
+
+        base_names.extend(
+            [
+                "One Factor Fast Algorithm",
+                "Returns Algorithm",
+                "Weighted Top Five",
+            ]
+        )
+
+        # Only include files that exist
+        args.files = [f for f in base_files if os.path.exists(f)]
+        args.names = [n for i, n in enumerate(base_names) if i < len(args.files)]
+
+    # Add default names if not provided but files are
+    elif args.files and not args.names:
+        # Build names based on files
+        args.names = []
+        for file_path in args.files:
+            basename = os.path.basename(file_path)
+            if "spy_returns" in basename:
+                args.names.append("S&P 500")
+            elif "balanced_returns" in basename:
+                args.names.append("60/40")
+            elif "cust_long_portfolio" in basename:
+                args.names.append("Custom Algorithm (Long)")
+            elif "cust_short_portfolio" in basename:
+                args.names.append("Custom Algorithm (Short)")
+            elif "cust_portfolio" in basename:
+                args.names.append("Custom Algorithm")
+            elif "one_factor_fast" in basename:
+                args.names.append("One Factor Fast Algorithm")
+            elif "returns_algorithm" in basename:
+                args.names.append("Returns Algorithm")
+            elif "weighted_top_five" in basename:
+                args.names.append("Weighted Top Five")
+            else:
+                args.names.append(f"Portfolio {len(args.names) + 1}")
 
     # Print out the file paths here
     print("Files used for graph generation:")
