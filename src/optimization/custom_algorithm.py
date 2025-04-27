@@ -492,6 +492,15 @@ def analyze_portfolio_performance_with_rebalancing(
     if portfolio_start_date not in rebal_dates:
         rebal_dates = rebal_dates.insert(0, portfolio_start_date)
 
+    # Make sure the last date in the returns data is included as a rebalancing date if needed
+    last_date = returns_data.index.max()
+    if last_date not in rebal_dates:
+        rebal_dates = rebal_dates.append(pd.DatetimeIndex([last_date]))
+        rebal_dates = rebal_dates.sort_values()
+        print(
+            f"[DEBUG] Added last date {last_date.strftime('%Y-%m-%d')} to rebalancing schedule"
+        )
+
     # Initialize tracking variables
     portfolio_returns = pd.Series(index=returns_data.index)
     current_weights = None
@@ -663,7 +672,30 @@ def analyze_portfolio_performance_with_rebalancing(
                 portfolio_returns.loc[date] = day_return
 
     # Clean up any missing values
+    missing_count = portfolio_returns.isna().sum()
+
+    # Debug logging for NaN values
+    print(f"[DEBUG] Portfolio returns size before cleanup: {len(portfolio_returns)}")
+    print(f"[DEBUG] Number of NaN values found: {missing_count}")
+
+    if missing_count > 0 and verbose:
+        missing_indices = portfolio_returns.index[portfolio_returns.isna()]
+        # Show the first few missing dates if there are any
+        print(
+            f"[DEBUG] First few dates with missing values: {missing_indices[:5].strftime('%Y-%m-%d').tolist()}"
+        )
+        # Show the last rebalancing date and the range of missing dates
+        if len(rebalancing_history) > 0:
+            last_rebal_date = rebalancing_history[-1]["date"]
+            print(
+                f"[DEBUG] Last rebalancing date: {last_rebal_date.strftime('%Y-%m-%d')}"
+            )
+            print(
+                f"[DEBUG] Gap between last rebalance and first missing date: {(missing_indices[0] - last_rebal_date).days} days"
+            )
+
     portfolio_returns = portfolio_returns.dropna()
+    print(f"[DEBUG] Portfolio returns size after cleanup: {len(portfolio_returns)}")
 
     if len(portfolio_returns) == 0:
         raise ValueError(
@@ -907,6 +939,36 @@ def main(
     returns_xlsx = os.path.join(output_dir, "cust_portfolio_returns.xlsx")
     portfolio_returns.to_frame("portfolio_return").to_excel(returns_xlsx)
     print(f"Saved portfolio returns to {returns_xlsx}")
+
+    # Print explicit date range coverage
+    print("\nPortfolio returns date coverage:")
+    print(f"  First date: {portfolio_returns.index.min().strftime('%Y-%m-%d')}")
+    print(f"  Last date: {portfolio_returns.index.max().strftime('%Y-%m-%d')}")
+    print(f"  Total trading days: {len(portfolio_returns)}")
+
+    # Check if the full period is covered
+    expected_first = (
+        pd.to_datetime(periods.get(period, [start_date, None])[0])
+        if period in periods or start_date
+        else None
+    )
+    expected_last = (
+        pd.to_datetime(periods.get(period, [None, end_date])[1])
+        if period in periods or end_date
+        else None
+    )
+
+    if expected_first and expected_last:
+        print(
+            f"  Expected date range: {expected_first.strftime('%Y-%m-%d')} to {expected_last.strftime('%Y-%m-%d')}"
+        )
+        missing_start = max(0, (portfolio_returns.index.min() - expected_first).days)
+        missing_end = max(0, (expected_last - portfolio_returns.index.max()).days)
+
+        if missing_start > 0 or missing_end > 0:
+            print(
+                f"  WARNING: Missing {missing_start} days at start and {missing_end} days at end of expected period"
+            )
 
     # Save rolling annual returns for histogram
     rolling_returns_file = os.path.join(output_dir, "cust_rolling_annual_returns.csv")

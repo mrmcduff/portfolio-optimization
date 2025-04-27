@@ -187,6 +187,101 @@ def load_return_files(
     if all_returns:
         combined = pd.concat(all_returns, axis=1)
         combined.columns = all_names
+
+        # Calculate common date range before alignment (for logging)
+        orig_first_date = combined.index.min()
+        orig_last_date = combined.index.max()
+        orig_count = len(combined)
+
+        # Look for known period boundaries
+        # Define standard periods for analysis
+        periods = {
+            "financial_crisis": ("2008-01-02", "2013-01-02"),
+            "post_crisis": ("2012-01-01", "2018-12-31"),
+            "recent": ("2019-01-01", "2023-12-31"),
+        }
+        period_of_interest = "recent"  # Default to recent
+
+        # Check if any environment variables are set to override this
+        import os
+
+        period_env = os.environ.get("BENCHMARK_PERIOD")
+        if period_env and period_env in periods:
+            period_of_interest = period_env
+
+        # Get the date range for the period of interest
+        period_start = pd.to_datetime(periods[period_of_interest][0])
+        period_end = pd.to_datetime(periods[period_of_interest][1])
+
+        # Identify which series are missing data within the period of interest
+        period_mask = (combined.index >= period_start) & (combined.index <= period_end)
+        period_data = combined.loc[period_mask]
+
+        # Check each series for NaN values in the period of interest
+        nan_counts = {}
+        missing_ranges = {}
+        for col in period_data.columns:
+            nan_series = period_data[col].isna()
+            count = nan_series.sum()
+            if count > 0:
+                nan_counts[col] = count
+                # Find first and last date with missing data
+                missing_dates = period_data.index[nan_series]
+                if len(missing_dates) > 0:
+                    # Group consecutive dates - this is simplified logic
+                    ranges = []
+                    current_range = [missing_dates[0]]
+                    for i in range(1, len(missing_dates)):
+                        if (
+                            missing_dates[i] - missing_dates[i - 1]
+                        ).days > 5:  # New range if gap > 5 days
+                            ranges.append((current_range[0], current_range[-1]))
+                            current_range = [missing_dates[i]]
+                        else:
+                            current_range.append(missing_dates[i])
+                    ranges.append((current_range[0], current_range[-1]))
+                    missing_ranges[col] = ranges
+
+        # Trim to common date range to ensure fair comparison
+        # Drop NaN values to find valid range across all series
+        combined = combined.dropna()
+
+        if len(combined) < orig_count:
+            first_valid_date = combined.index.min()
+            last_valid_date = combined.index.max()
+            print("Aligned all returns to common date range:")
+            print(
+                f"  Original: {orig_first_date.strftime('%Y-%m-%d')} to {orig_last_date.strftime('%Y-%m-%d')} ({orig_count} trading days)"
+            )
+            print(
+                f"  Aligned: {first_valid_date.strftime('%Y-%m-%d')} to {last_valid_date.strftime('%Y-%m-%d')} ({len(combined)} trading days)"
+            )
+            print(
+                f"  Dropped {orig_count - len(combined)} days with missing data in at least one series"
+            )
+
+            # Report which series were missing data in the period of interest
+            if nan_counts:
+                print(
+                    f"\nSeries with missing data in {period_of_interest} period ({period_start.strftime('%Y-%m-%d')} to {period_end.strftime('%Y-%m-%d')}):"
+                )
+                for col, count in nan_counts.items():
+                    percent = count / len(period_data) * 100
+                    print(f"  {col}: {count} missing values ({percent:.2f}% of period)")
+
+                    # Show detailed ranges of missing data
+                    if col in missing_ranges:
+                        print("    Missing data in these date ranges:")
+                        for range_start, range_end in missing_ranges[col]:
+                            days = (range_end - range_start).days + 1
+                            print(
+                                f"      {range_start.strftime('%Y-%m-%d')} to {range_end.strftime('%Y-%m-%d')} ({days} days)"
+                            )
+            else:
+                print(
+                    f"\nNo series missing data within the {period_of_interest} period."
+                )
+
         return combined
     else:
         raise ValueError("No valid return files were loaded")
