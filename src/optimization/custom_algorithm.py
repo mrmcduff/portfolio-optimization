@@ -731,6 +731,7 @@ def main(
     end_date: Optional[str] = None,
     years: Optional[int] = None,
     verbose: bool = False,
+    run_both_versions: bool = False,
 ) -> None:
     """
     Main function to run the Fast Algorithm portfolio optimization.
@@ -758,7 +759,13 @@ def main(
     lookback_window : int, optional
         Number of trading days to use for parameter estimation, by default 252
     """
-    print("Running Fast Algorithm portfolio optimization")
+    if run_both_versions and not long_only:
+        print(
+            "Running Custom Algorithm portfolio optimization with BOTH long-only and short-enabled versions"
+        )
+    else:
+        version_type = "long-only" if long_only else "short-enabled"
+        print(f"Running Custom Algorithm portfolio optimization ({version_type})")
 
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -854,53 +861,201 @@ def main(
         min_weight=min_weight,
     )
 
-    # Run optimization
-    if rebalance:
-        print(
-            f"Using {rebalance_frequency} rebalancing with {lookback_window}-day lookback window"
+    # Function to run optimization with specified constraints and save results
+    def run_optimization_and_save(long_only_mode: bool, suffix: str = ""):
+        print(f"\nRunning optimization with long_only={long_only_mode}")
+
+        # Prepare optimization inputs for this run
+        expected_returns, covariance_matrix = prepare_optimization_inputs(returns_data)
+
+        # Run Fast Algorithm optimization for this mode
+        optimal_weights, portfolio_info = custom_algorithm_portfolio(
+            expected_returns,
+            covariance_matrix,
+            risk_free_rate,
+            long_only=long_only_mode,
+            max_weight=max_weight,
+            min_weight=min_weight,
         )
+
+        # Run full portfolio analysis
+        if rebalance:
+            print(
+                f"Using {rebalance_frequency} rebalancing with {lookback_window}-day lookback window"
+            )
+            (
+                portfolio_returns,
+                performance_metrics,
+            ) = analyze_portfolio_performance_with_rebalancing(
+                returns_data,
+                custom_algorithm_portfolio,
+                rebalance_frequency=rebalance_frequency,
+                lookback_window=lookback_window,
+                risk_free_rate=risk_free_rate,
+                max_weight=max_weight,
+                min_weight=min_weight,
+                long_only=long_only_mode,
+                period=period,
+                start_date=start_date,
+                verbose=verbose,
+            )
+
+            # Save rebalancing history
+            rebalancing_df = pd.DataFrame(performance_metrics["rebalancing_history"])
+            rebalancing_file = os.path.join(
+                output_dir, f"cust{suffix}_rebalancing_history.csv"
+            )
+            rebalancing_df.to_csv(rebalancing_file, index=False)
+            print(f"Saved rebalancing history to {rebalancing_file}")
+
+            # Save as Excel for visualization
+            rebalancing_xlsx = os.path.join(
+                output_dir, f"custom{suffix}_algorithm_rebalancing.xlsx"
+            )
+            rebalancing_df.to_excel(rebalancing_xlsx, index=False)
+            print(f"Saved custom algorithm rebalancing log to {rebalancing_xlsx}")
+
+            # Print summary of returns and Sharpe ratios
+            print(
+                f"\nRebalancing period returns, volatility, and Sharpe ratios ({suffix}):"
+            )
+            for row in rebalancing_df.itertuples():
+                if (
+                    hasattr(row, "period_return")
+                    and hasattr(row, "period_sharpe")
+                    and hasattr(row, "period_vol")
+                ):
+                    print(
+                        f"Date: {row.date} | Period Return: {row.period_return:.4%} | Period Volatility: {row.period_vol:.4%} | Period Sharpe: {row.period_sharpe if row.period_sharpe is not None else 'N/A'}"
+                    )
+        else:
+            # Analyze historical performance
+            portfolio_returns, performance_metrics = analyze_portfolio_performance(
+                optimal_weights, returns_data
+            )
+
+        # Save results
+        # Save optimal weights
+        weights_file = os.path.join(output_dir, f"cust{suffix}_optimal_weights.csv")
+        optimal_weights.to_csv(weights_file)
+        print(f"Saved optimal weights to {weights_file}")
+        # Also save as XLSX
+        weights_xlsx = os.path.join(output_dir, f"cust{suffix}_optimal_weights.xlsx")
+        optimal_weights.to_frame("weight").to_excel(weights_xlsx)
+        print(f"Saved optimal weights to {weights_xlsx}")
+
+        # Save portfolio metrics
+        metrics_df = pd.DataFrame(
+            {
+                "metric": ["return", "volatility", "sharpe_ratio"],
+                "value": [
+                    portfolio_info["return"],
+                    portfolio_info["volatility"],
+                    portfolio_info["sharpe_ratio"],
+                ],
+            }
+        )
+        metrics_file = os.path.join(output_dir, f"cust{suffix}_portfolio_metrics.csv")
+        metrics_df.to_csv(metrics_file, index=False)
+        print(f"Saved portfolio metrics to {metrics_file}")
+        # Also save as XLSX
+        metrics_xlsx = os.path.join(output_dir, f"cust{suffix}_portfolio_metrics.xlsx")
+        metrics_df.to_excel(metrics_xlsx, index=False)
+        print(f"Saved portfolio metrics to {metrics_xlsx}")
+
+        # Save portfolio returns
+        returns_file = os.path.join(output_dir, f"cust{suffix}_portfolio_returns.csv")
+        portfolio_returns.to_frame("portfolio_return").to_csv(returns_file)
+        print(f"Saved portfolio returns to {returns_file}")
+        # Also save as XLSX
+        returns_xlsx = os.path.join(output_dir, f"cust{suffix}_portfolio_returns.xlsx")
+        portfolio_returns.to_frame("portfolio_return").to_excel(returns_xlsx)
+        print(f"Saved portfolio returns to {returns_xlsx}")
+
+        # Print explicit date range coverage
+        print(f"\nPortfolio returns date coverage ({suffix}):")
+        print(f"  First date: {portfolio_returns.index.min().strftime('%Y-%m-%d')}")
+        print(f"  Last date: {portfolio_returns.index.max().strftime('%Y-%m-%d')}")
+        print(f"  Total trading days: {len(portfolio_returns)}")
+
+        # Check if the full period is covered
+        expected_first = (
+            pd.to_datetime(periods.get(period, [start_date, None])[0])
+            if period in periods or start_date
+            else None
+        )
+        expected_last = (
+            pd.to_datetime(periods.get(period, [None, end_date])[1])
+            if period in periods or end_date
+            else None
+        )
+
+        if expected_first and expected_last:
+            print(
+                f"  Expected date range: {expected_first.strftime('%Y-%m-%d')} to {expected_last.strftime('%Y-%m-%d')}"
+            )
+            missing_start = max(
+                0, (portfolio_returns.index.min() - expected_first).days
+            )
+            missing_end = max(0, (expected_last - portfolio_returns.index.max()).days)
+
+            if missing_start > 0 or missing_end > 0:
+                print(
+                    f"  WARNING: Missing {missing_start} days at start and {missing_end} days at end of expected period"
+                )
+
+        # Save rolling annual returns for histogram
+        rolling_returns_file = os.path.join(
+            output_dir, f"cust{suffix}_rolling_annual_returns.csv"
+        )
+        performance_metrics["rolling_annual_returns"].to_frame("annual_return").to_csv(
+            rolling_returns_file
+        )
+        print(f"Saved rolling annual returns to {rolling_returns_file}")
+        # Also save as XLSX
+        rolling_returns_xlsx = os.path.join(
+            output_dir, f"cust{suffix}_rolling_annual_returns.xlsx"
+        )
+        performance_metrics["rolling_annual_returns"].to_frame(
+            "annual_return"
+        ).to_excel(rolling_returns_xlsx)
+        print(f"Saved rolling annual returns to {rolling_returns_xlsx}")
+
+        print(f"\nCustom Algorithm optimization ({suffix}) complete")
+        print(f"Portfolio expected return: {portfolio_info['return']:.4%}")
+        print(f"Portfolio expected volatility: {portfolio_info['volatility']:.4%}")
+        print(f"Portfolio Sharpe ratio: {portfolio_info['sharpe_ratio']:.4f}")
+
+        # Print allocations (assets with weights > 1%)
+        print(f"\nOptimal Portfolio Allocation ({suffix}):")
+        for asset, weight in optimal_weights.items():
+            if abs(weight) > 0.01:  # Show allocations with abs value > 1%
+                print(f"  {asset}: {weight:.2%}")
+
+        return portfolio_returns, performance_metrics, optimal_weights
+
+    # Determine which versions to run
+    if run_both_versions and not long_only:
+        # Run long-only version and save with _long suffix
+        long_returns, long_metrics, long_weights = run_optimization_and_save(
+            True, "_long"
+        )
+
+        # Run short-enabled version and save with _short suffix
+        short_returns, short_metrics, short_weights = run_optimization_and_save(
+            False, "_short"
+        )
+
+        # Use the original requested version (short-enabled) as the default output
+        portfolio_returns, performance_metrics = short_returns, short_metrics
+        optimal_weights = short_weights
+    else:
+        # Run single version as requested
         (
             portfolio_returns,
             performance_metrics,
-        ) = analyze_portfolio_performance_with_rebalancing(
-            returns_data,
-            custom_algorithm_portfolio,
-            rebalance_frequency=rebalance_frequency,
-            lookback_window=lookback_window,
-            risk_free_rate=risk_free_rate,
-            max_weight=max_weight,
-            min_weight=min_weight,
-            long_only=long_only,
-            period=period,
-            start_date=start_date,
-            verbose=verbose,
-        )
-
-        # Save rebalancing history (CSV, as before)
-        rebalancing_df = pd.DataFrame(performance_metrics["rebalancing_history"])
-        rebalancing_file = os.path.join(output_dir, "cust_rebalancing_history.csv")
-        rebalancing_df.to_csv(rebalancing_file, index=False)
-        print(f"Saved rebalancing history to {rebalancing_file}")
-        # Save as Excel for custom algorithm (for visualization)
-        rebalancing_xlsx = os.path.join(output_dir, "custom_algorithm_rebalancing.xlsx")
-        rebalancing_df.to_excel(rebalancing_xlsx, index=False)
-        print(f"Saved custom algorithm rebalancing log to {rebalancing_xlsx}")
-        # Also print summary of returns and Sharpe ratios for each period
-        print("\nRebalancing period returns, volatility, and Sharpe ratios:")
-        for row in rebalancing_df.itertuples():
-            if (
-                hasattr(row, "period_return")
-                and hasattr(row, "period_sharpe")
-                and hasattr(row, "period_vol")
-            ):
-                print(
-                    f"Date: {row.date} | Period Return: {row.period_return:.4%} | Period Volatility: {row.period_vol:.4%} | Period Sharpe: {row.period_sharpe if row.period_sharpe is not None else 'N/A'}"
-                )
-    else:
-        # Analyze historical performance
-        portfolio_returns, performance_metrics = analyze_portfolio_performance(
-            optimal_weights, returns_data
-        )
+            optimal_weights,
+        ) = run_optimization_and_save(long_only, "")
 
     # Save results
     # Save optimal weights
@@ -1070,6 +1225,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Print debug messages",
     )
+    parser.add_argument(
+        "--run-both-versions",
+        action="store_true",
+        help="When using --allow-short, also run and save long-only version",
+    )
     args = parser.parse_args()
 
     rebalance_portfolio = True if args.rebalance_frequency is not None else False
@@ -1088,4 +1248,5 @@ if __name__ == "__main__":
         end_date=args.end_date,
         years=args.years,
         verbose=args.verbose,
+        run_both_versions=args.run_both_versions,
     )
