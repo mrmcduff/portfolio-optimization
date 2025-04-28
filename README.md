@@ -44,7 +44,7 @@ portfolio-optimization/
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/portfolio-optimization.git
+git clone https://github.com/mrmcduff/portfolio-optimization.git
 cd portfolio-optimization
 
 # Create a virtual environment

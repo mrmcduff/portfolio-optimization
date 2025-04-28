@@ -502,6 +502,8 @@ def plot_rolling_metrics(
 ) -> List[plt.Figure]:
     """
     Plot rolling performance metrics (returns, volatility, Sharpe ratio).
+    Omits the first month (21 trading days) of rolling data to avoid initialization
+    artifacts that can create spikes and make the plots less readable.
 
     Parameters:
     -----------
@@ -519,15 +521,47 @@ def plot_rolling_metrics(
     """
     figures = []
 
-    # Calculate rolling metrics
-    rolling_returns = returns.rolling(window=window, min_periods=1).mean() * window
-    rolling_vol = returns.rolling(window=window, min_periods=1).std() * np.sqrt(window)
-    rolling_sharpe = rolling_returns / rolling_vol
+    # Calculate rolling metrics, requiring more data for initial values
+    # Minimum period of about a month (21 trading days) or 25% of the window, whichever is larger
+    min_periods = max(21, window // 4)
+    rolling_returns = (
+        returns.rolling(window=window, min_periods=min_periods).mean() * window
+    )
+    rolling_vol = returns.rolling(
+        window=window, min_periods=min_periods
+    ).std() * np.sqrt(window)
+
+    # Calculate Sharpe ratio, avoiding division by zero
+    rolling_sharpe = pd.DataFrame(
+        index=rolling_returns.index, columns=rolling_returns.columns
+    )
+    for col in rolling_returns.columns:
+        # Only calculate Sharpe where volatility is meaningful
+        mask = rolling_vol[col] > 0.001
+        rolling_sharpe.loc[mask, col] = (
+            rolling_returns.loc[mask, col] / rolling_vol.loc[mask, col]
+        )
 
     # Plot rolling annualized returns
     fig1 = plt.figure(figsize=(12, 8))
     for column in rolling_returns.columns:
-        plt.plot(rolling_returns.index, rolling_returns[column], label=column)
+        # Skip the first month (approx 21 trading days) of data to avoid initial spikes
+        if not rolling_returns[column].isna().all():  # Skip if all values are NaN
+            # Find first non-NaN value
+            first_valid_idx = rolling_returns[column].first_valid_index()
+            if first_valid_idx is not None:
+                # Find all dates after first_valid_idx
+                valid_dates = rolling_returns.index[
+                    rolling_returns.index >= first_valid_idx
+                ]
+                # Skip the first 21 days (approx. 1 month) of valid data
+                if len(valid_dates) > 21:
+                    skip_date = valid_dates[21]
+                    plt.plot(
+                        rolling_returns.loc[skip_date:, column].index,
+                        rolling_returns.loc[skip_date:, column],
+                        label=column,
+                    )
 
     plt.xlabel("Date")
     plt.ylabel(f"Rolling {window}-day Annualized Return")
@@ -545,7 +579,21 @@ def plot_rolling_metrics(
     # Plot rolling volatility
     fig2 = plt.figure(figsize=(12, 8))
     for column in rolling_vol.columns:
-        plt.plot(rolling_vol.index, rolling_vol[column], label=column)
+        # Skip the first month (approx 21 trading days) of data to avoid initial spikes
+        if not rolling_vol[column].isna().all():  # Skip if all values are NaN
+            # Find first non-NaN value
+            first_valid_idx = rolling_vol[column].first_valid_index()
+            if first_valid_idx is not None:
+                # Find all dates after first_valid_idx
+                valid_dates = rolling_vol.index[rolling_vol.index >= first_valid_idx]
+                # Skip the first 21 days (approx. 1 month) of valid data
+                if len(valid_dates) > 21:
+                    skip_date = valid_dates[21]
+                    plt.plot(
+                        rolling_vol.loc[skip_date:, column].index,
+                        rolling_vol.loc[skip_date:, column],
+                        label=column,
+                    )
 
     plt.xlabel("Date")
     plt.ylabel(f"Rolling {window}-day Annualized Volatility")
@@ -563,7 +611,23 @@ def plot_rolling_metrics(
     # Plot rolling Sharpe ratio
     fig3 = plt.figure(figsize=(12, 8))
     for column in rolling_sharpe.columns:
-        plt.plot(rolling_sharpe.index, rolling_sharpe[column], label=column)
+        # Skip the first month (approx 21 trading days) of data to avoid initial spikes
+        if not rolling_sharpe[column].isna().all():  # Skip if all values are NaN
+            # Find first non-NaN value
+            first_valid_idx = rolling_sharpe[column].first_valid_index()
+            if first_valid_idx is not None:
+                # Find all dates after first_valid_idx
+                valid_dates = rolling_sharpe.index[
+                    rolling_sharpe.index >= first_valid_idx
+                ]
+                # Skip the first 21 days (approx. 1 month) of valid data
+                if len(valid_dates) > 21:
+                    skip_date = valid_dates[21]
+                    plt.plot(
+                        rolling_sharpe.loc[skip_date:, column].index,
+                        rolling_sharpe.loc[skip_date:, column],
+                        label=column,
+                    )
 
     plt.xlabel("Date")
     plt.ylabel(f"Rolling {window}-day Sharpe Ratio")
